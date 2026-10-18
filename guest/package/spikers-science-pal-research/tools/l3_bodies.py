@@ -19,6 +19,25 @@ import wave
 from pathlib import Path
 
 
+DOMAIN_META = {
+    "01-ma-weiying": ("马维英", "arXiv Atom API https://export.arxiv.org/api/query"),
+    "02-yan-jun": ("闫峻", "NCCTG lung (R survival::cancer) https://vincentarelbundock.github.io/Rdatasets/csv/survival/cancer.csv"),
+    "03-xu-kaidi": ("许凯第", "CIFAR-10 binary https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz"),
+    "04-miao-ning": ("苗宁", "UniProt REST https://rest.uniprot.org/uniprotkb/search"),
+    "05-wang-zhenbin": ("王振斌", "Zenodo Cu-SAA CO adsorption https://zenodo.org/records/10679574"),
+    "06-wang-li": ("王力", "Open Speech Repository https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0010_8k.wav"),
+    "07-guo-xingyu": ("郭星宇", "NYC taxi SODA https://data.cityofnewyork.us/resource/t29m-gskq.csv"),
+    "08-zhang-yuying": ("张钰莹", "ChEMBL CHEMBL1829 https://www.ebi.ac.uk/chembl/api/data/activity.json"),
+    "09-wang-maolin": ("王茂林", "Rosenbrock / Beale / Rastrigin closed-form benchmarks"),
+    "10-zheng-xiang": ("郑翔", "SNAP facebook_combined https://snap.stanford.edu/data/facebook_combined.txt.gz"),
+    "11-chen-weiyu": ("陈巍昱", "UCI HIGGS https://archive.ics.uci.edu/ml/machine-learning-databases/00280/HIGGS.csv.gz"),
+    "12-zhao-yinggong": ("赵迎功", "Tiny Shakespeare https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"),
+    "13-wang-yao": ("王尧", "ISIC Archive https://api.isic-archive.com/api/v2/images/"),
+    "14-liu-jiayu": ("刘嘉聿", "Moving AI dao maps https://movingai.com/benchmarks/dao/dao-map.zip"),
+    "15-liu-gang": ("刘罡", "PhysioNet EEGMMIDB https://physionet.org/files/eegmmidb/1.0.0/S001/S001R04.edf"),
+}
+
+
 def report(title, headline, rows, headers, filename, real):
     os.makedirs("workspace", exist_ok=True)
     path = Path("workspace") / filename
@@ -27,6 +46,8 @@ def report(title, headline, rows, headers, filename, real):
         writer.writerow(headers)
         writer.writerows(rows)
     kind = "真实数据结论" if real else "合成数据冒烟，非作品结论"
+    # First conclusion line in report.html. experiments.json uses this same string.
+    first_line = headline
     head = "".join("<th>{}</th>".format(html_lib.escape(str(h))) for h in headers)
     body = []
     for row in rows:
@@ -38,13 +59,26 @@ def report(title, headline, rows, headers, filename, real):
         "<style>body{{font:16px/1.5 system-ui,sans-serif;margin:2rem;background:#0d1117;color:#e6edf3}}"
         "table{{border-collapse:collapse}} td,th{{border:1px solid #30363d;padding:.35rem .7rem}}"
         ".warn{{color:#f0883e}} .ok{{color:#3fb950}}</style>"
-        "<h1>{}</h1><p class='{}'>{}</p><p>{}</p><table><tr>{}</tr>{}</table>"
+        "<h1>{}</h1><p class='{}'>{}</p><p class='{}'>{}</p><table><tr>{}</tr>{}</table>"
         "<p>CSV: workspace/{}</p>"
     ).format(
-        html_lib.escape(title), html_lib.escape(title), klass, html_lib.escape(kind),
-        html_lib.escape(headline), head, "".join(body), html_lib.escape(filename),
+        html_lib.escape(title), html_lib.escape(title), klass, html_lib.escape(first_line),
+        klass, html_lib.escape(kind), head, "".join(body), html_lib.escape(filename),
     )
     Path("workspace/report.html").write_text(page, encoding="utf-8")
+    domain = Path.cwd().name
+    judge, source = DOMAIN_META.get(domain, ("", ""))
+    meta = {
+        "domain": domain,
+        "judge": judge,
+        "title": title,
+        "real": bool(real),
+        "headline": first_line,
+        "source": source,
+        "artifacts": ["report.html", filename],
+    }
+    (Path("workspace") / "experiments.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(kind)
     print(headline)
     for row in rows[:12]:

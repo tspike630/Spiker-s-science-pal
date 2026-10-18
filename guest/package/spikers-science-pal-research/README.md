@@ -39,9 +39,11 @@ need no download. L3 reads `data/raw/` when `data_fetch.sh` has already
 filled it, and otherwise finishes on synthetic data so a disconnected demo
 still exits 0.
 
-`judges.overview` opens the 16-page capability matrix (function map with the
-full three-level table per field, served on `127.0.0.1:8765`; forward port
-8765 in the app to view from the Mac).
+`judges.overview` opens the 16-page capability matrix inside the research VM
+(Spiker's Science Pal), served on `127.0.0.1:8765`. That page is the VM's
+local map. The SciencePal platform at sciencepal.ai is a separate product;
+its Agent link is the hackathon submission, and this VM supplies the
+numbers that Agent cites. Forward port 8765 to view the matrix from the Mac.
 
 ## Content model
 

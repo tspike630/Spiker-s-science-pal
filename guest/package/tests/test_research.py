@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline contracts for the research workbench: 45 scripts, fetch skip, menu, matrix."""
 
+import html
 import json
 import os
 from pathlib import Path
@@ -31,6 +32,10 @@ class ResearchPackage(unittest.TestCase):
     def test_judges_json_matches_the_generator(self):
         generated = subprocess.check_output(["python3", str(BUILD)])
         self.assertEqual(generated, JUDGES.read_bytes())
+        overview = json.loads((PKG / "files/usr/share/spikers-science-pal-research/domains-overview.json").read_text())
+        domains = [row for row in overview["records"] if row["domain"] != "overview"]
+        self.assertEqual(len(domains), 15)
+        self.assertEqual({row["domain"] for row in domains}, {judge["id"] for judge in json.loads(JUDGES.read_text())["judges"]})
 
     def test_forty_five_scripts_and_fetch_scripts(self):
         data = json.loads(JUDGES.read_text())
@@ -76,6 +81,14 @@ class ResearchPackage(unittest.TestCase):
                 self.assertIn("数据已就绪，使用本地数据", second.stdout)
                 report = work / "workspace" / "report.html"
                 self.assertTrue(report.is_file(), judge["id"])
+                page = report.read_text(encoding="utf-8")
+                first = re.search(r"<p class='(?:ok|warn)'>(.*?)</p>", page)
+                self.assertIsNotNone(first, judge["id"])
+                meta = json.loads((work / "workspace" / "experiments.json").read_text(encoding="utf-8"))
+                self.assertEqual(meta["headline"], html.unescape(first.group(1)))
+                self.assertEqual(meta["domain"], judge["id"])
+                self.assertIs(meta["real"], judge["id"] in {"09-wang-maolin", "14-liu-jiayu"})
+                self.assertIn("report.html", meta["artifacts"])
 
     def test_menu_injection_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:

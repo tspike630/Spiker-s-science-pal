@@ -1,0 +1,164 @@
+{
+ "records": [
+  {
+   "domain": "overview",
+   "judge": "科研能力总览",
+   "area": "AI4Science Hackathon · 科研虚拟机 Spiker's Science Pal",
+   "l1_desc": "16 页能力矩阵",
+   "l2_desc": "",
+   "l3_desc": "",
+   "data_source": "本机页面 http://127.0.0.1:8765/ （科研虚拟机内的总览，不是 SciencePal 平台链接）",
+   "experiments_path": ""
+  },
+  {
+   "domain": "01-ma-weiying",
+   "judge": "马维英",
+   "area": "AI for Science / 信息工程",
+   "l1_desc": "科研文献主题聚类（TF-IDF + K-means 纯实现）",
+   "l2_desc": "主题聚类深度版：k-means++ 初始化 + 主题词提取 + 簇质量评估",
+   "l3_desc": "arXiv 真实文献：TF-IDF + k-means++ 五主题簇",
+   "data_source": "arXiv API https://arxiv.org/help/api",
+   "experiments_path": "~/science/domains/01-ma-weiying/workspace/experiments.json"
+  },
+  {
+   "domain": "02-yan-jun",
+   "judge": "闫峻",
+   "area": "生物统计 / 数字医疗",
+   "l1_desc": "Kaplan-Meier 生存曲线与 log-rank 检验",
+   "l2_desc": "分层 KM + 中位生存时间 + 完整 log-rank（含删失处理）",
+   "l3_desc": "公开肺癌队列：分层 Kaplan-Meier + log-rank",
+   "data_source": "TCGA 临床数据 https://portal.gdc.cancer.gov/",
+   "experiments_path": "~/science/domains/02-yan-jun/workspace/experiments.json"
+  },
+  {
+   "domain": "03-xu-kaidi",
+   "judge": "许凯第",
+   "area": "深度学习 / 多模态学习",
+   "l1_desc": "多模态特征 PCA 融合与分类",
+   "l2_desc": "融合方法对比：拼接 vs 平均 vs 加权 + 交叉验证",
+   "l3_desc": "CIFAR 风格特征：单模态 vs 三种融合准确率",
+   "data_source": "MMIMDb / MMIM https://github.com/jackhuyshu/MMIM",
+   "experiments_path": "~/science/domains/03-xu-kaidi/workspace/experiments.json"
+  },
+  {
+   "domain": "04-miao-ning",
+   "judge": "苗宁",
+   "area": "蛋白质语言模型 / 生物医药",
+   "l1_desc": "蛋白序列理化特征与二肽组成谱",
+   "l2_desc": "进化距离 + UPGMA 系统发育树（无需外部库）",
+   "l3_desc": "UniProt 真实序列：组成谱 + UPGMA 对功能注释",
+   "data_source": "UniProt https://www.uniprot.org/",
+   "experiments_path": "~/science/domains/04-miao-ning/workspace/experiments.json"
+  },
+  {
+   "domain": "05-wang-zhenbin",
+   "judge": "王振斌",
+   "area": "AI + 材料 / 电催化",
+   "l1_desc": "催化活性描述符回归（梯度下降）",
+   "l2_desc": "岭回归 + 留一交叉验证 + 特征重要性（比梯度下降更标准）",
+   "l3_desc": "电催化吸附能：描述符岭回归与活性 Top10",
+   "data_source": "Materials Project https://materialsproject.org/",
+   "experiments_path": "~/science/domains/05-wang-zhenbin/workspace/experiments.json"
+  },
+  {
+   "domain": "06-wang-li",
+   "judge": "王力",
+   "area": "自然语言处理 / 语音与音频",
+   "l1_desc": "音频基频与能量特征估计",
+   "l2_desc": "分帧 + 能量轮廓 + VAD 语音活动检测 + 基频曲线",
+   "l3_desc": "真实语音：能量、过零率、基频与分段",
+   "data_source": "LibriSpeech https://www.openslr.org/12",
+   "experiments_path": "~/science/domains/06-wang-li/workspace/experiments.json"
+  },
+  {
+   "domain": "07-guo-xingyu",
+   "judge": "郭星宇",
+   "area": "时空数据 / 智慧城市",
+   "l1_desc": "GPS 轨迹停留点检测与 OD 分析",
+   "l2_desc": "速度剖面 + 停留时间分布 + OD 矩阵统计",
+   "l3_desc": "NYC 出租车：OD Top5 与高峰小时",
+   "data_source": "NYC Taxi Trip Data https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page",
+   "experiments_path": "~/science/domains/07-guo-xingyu/workspace/experiments.json"
+  },
+  {
+   "domain": "08-zhang-yuying",
+   "judge": "张钰莹",
+   "area": "生物信息学 / 药物研发",
+   "l1_desc": "序列全局比对 + 分子相似度筛选",
+   "l2_desc": "Smith-Waterman 局部比对 + 保守位点识别",
+   "l3_desc": "ChEMBL 真实活性：Tanimoto 富集与 QSAR R²",
+   "data_source": "ChEMBL https://www.ebi.ac.uk/chembl/",
+   "experiments_path": "~/science/domains/08-zhang-yuying/workspace/experiments.json"
+  },
+  {
+   "domain": "09-wang-maolin",
+   "judge": "王茂林",
+   "area": "数学 / AI 交叉",
+   "l1_desc": "梯度下降 vs 牛顿法收敛对比",
+   "l2_desc": "收敛阶估计 + 阻尼牛顿/割线法对比",
+   "l3_desc": "Rosenbrock / Beale / Rastrigin：优化器 × 函数矩阵",
+   "data_source": "CUTEst https://github.com/ralna/CUTEst",
+   "experiments_path": "~/science/domains/09-wang-maolin/workspace/experiments.json"
+  },
+  {
+   "domain": "10-zheng-xiang",
+   "judge": "郑翔",
+   "area": "数据挖掘 / 社交网络",
+   "l1_desc": "中心性 + 标签传播社区发现",
+   "l2_desc": "PageRank 迭代 + SIR 影响力传播模拟",
+   "l3_desc": "SNAP Facebook：度中心性、PageRank 与社区规模",
+   "data_source": "SNAP Datasets https://snap.stanford.edu/data/",
+   "experiments_path": "~/science/domains/10-zheng-xiang/workspace/experiments.json"
+  },
+  {
+   "domain": "11-chen-weiyu",
+   "judge": "陈巍昱",
+   "area": "高能物理 / 机器学习",
+   "l1_desc": "信号/本底事件分类（朴素贝叶斯）",
+   "l2_desc": "ROC 曲线 + AUC + 显著性估计（s/sqrt(b)）",
+   "l3_desc": "HIGGS 样本：高斯朴素贝叶斯、AUC 与 Z",
+   "data_source": "CERN Open Data https://opendata.cern.ch/",
+   "experiments_path": "~/science/domains/11-chen-weiyu/workspace/experiments.json"
+  },
+  {
+   "domain": "12-zhao-yinggong",
+   "judge": "赵迎功",
+   "area": "大模型 / AI 工程",
+   "l1_desc": "BPE 分词 + 注意力分数最小实现",
+   "l2_desc": "完整 BPE 训练（merge 表）+ 多头注意力",
+   "l3_desc": "真实语料 BPE：词表、OOV 与提示评估",
+   "data_source": "HuggingFace Hub https://huggingface.co/models",
+   "experiments_path": "~/science/domains/12-zhao-yinggong/workspace/experiments.json"
+  },
+  {
+   "domain": "13-wang-yao",
+   "judge": "王尧",
+   "area": "医学图像 / 智能诊疗",
+   "l1_desc": "影像降噪 + 病灶连通域检测",
+   "l2_desc": "Otsu 自动阈值 + 形态学处理 + 病灶特征提取",
+   "l3_desc": "ISIC 皮肤镜：降噪、Otsu 与圆度",
+   "data_source": "CheXpert https://stanfordmlgroup.github.io/projects/chexpert/",
+   "experiments_path": "~/science/domains/13-wang-yao/workspace/experiments.json"
+  },
+  {
+   "domain": "14-liu-jiayu",
+   "judge": "刘嘉聿",
+   "area": "机器人学习 / 具身智能",
+   "l1_desc": "A* 栅格路径规划",
+   "l2_desc": "A* vs Dijkstra 效率对比 + 路径平滑",
+   "l3_desc": "栅格地图：A* 与 Dijkstra 对比",
+   "data_source": "Habitat https://aihabitat.org/",
+   "experiments_path": "~/science/domains/14-liu-jiayu/workspace/experiments.json"
+  },
+  {
+   "domain": "15-liu-gang",
+   "judge": "刘罡",
+   "area": "脑科学 / 神经信号",
+   "l1_desc": "EEG 滤波与事件相关电位（ERP）",
+   "l2_desc": "频谱功率分析（FFT 纯实现）+ 频带对比",
+   "l3_desc": "PhysioNet EEG：频带功率与成分时间窗",
+   "data_source": "BCI Competition IV https://www.bbci.de/competition/iv/",
+   "experiments_path": "~/science/domains/15-liu-gang/workspace/experiments.json"
+  }
+ ]
+}
