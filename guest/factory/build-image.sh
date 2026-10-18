@@ -162,16 +162,16 @@ then
 fi
 
 partition_field() { # partition-number field
-  sfdisk --json "$disk" | jq -r --argjson n "$1" --arg f "$2" '.partitiontable.partitions[$n - 1][$f]'
+  sfdisk --json --no-reread "$disk" | jq -er --argjson n "$1" --arg f "$2" '.partitiontable.partitions[$n - 1][$f]'
 }
-esp_start=$(partition_field 1 start)
-esp_size=$(partition_field 1 size)
-root_start=$(partition_field 2 start)
-root_size=$(partition_field 2 size)
-root_partuuid=$(partition_field 2 uuid | tr 'A-Z' 'a-z')
+esp_start=$(partition_field 1 start) || fail "could not read the EFI partition start"
+esp_size=$(partition_field 1 size) || fail "could not read the EFI partition size"
+root_start=$(partition_field 2 start) || fail "could not read the root partition start"
+root_size=$(partition_field 2 size) || fail "could not read the root partition size"
+root_partuuid=$(partition_field 2 uuid | tr 'A-Z' 'a-z') || fail "could not read the root partition UUID"
 
-esp_loop=$(losetup --find --show --offset $((esp_start * 512)) --sizelimit $((esp_size * 512)) "$disk")
-root_loop=$(losetup --find --show --offset $((root_start * 512)) --sizelimit $((root_size * 512)) "$disk")
+esp_loop=$(losetup --find --show --offset $((esp_start * 512)) --sizelimit $((esp_size * 512)) "$disk") || fail "could not map the EFI partition"
+root_loop=$(losetup --find --show --offset $((root_start * 512)) --sizelimit $((root_size * 512)) "$disk") || fail "could not map the root partition"
 
 mkfs.vfat -F 32 -n SPIKERS_EFI "$esp_loop" >/dev/null
 mkfs.btrfs -q -L spikers "$root_loop"
