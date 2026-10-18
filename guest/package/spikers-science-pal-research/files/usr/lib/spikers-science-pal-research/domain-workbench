@@ -1,0 +1,152 @@
+#!/usr/bin/python3 -I
+"""Build one judge's deep research workbench under ~/science/domains/<id>/.
+
+Reads judges.json (SPIKERS_SCIENCE_PAL_JUDGES_DATA), takes the judge's
+`capabilities` and materialises a three-level field workbench:
+
+  README.md       — field science background, tools table, datasets,
+                    references and the deepening roadmap
+  launchpad.py    — L1: offline-runnable pure-stdlib demo (run today)
+  l2_advanced.py  — L2: a more complete, standard-method implementation
+  l3_extend.py    — L3: real-data access + deepening skeleton for the entry
+  *.ipynb         — each level also as a Jupyter notebook
+  data/ workspace/ — data and experiment output directories
+
+It also probes each declared tool (`check` is a shell command) and prints an
+installed/missing table so the domain launcher can show one-line actions.
+"""
+
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+DATA = Path(os.environ.get("SPIKERS_SCIENCE_PAL_JUDGES_DATA")
+             or "/usr/share/spikers-science-pal-research/judges.json")
+
+
+def probe(check):
+    """True if the tool's check command exits 0."""
+    try:
+        return subprocess.run(["bash", "-c", check], capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
+def render_tools(tools, state):
+    lines = ["| 工具 | 状态 | 安装 | 用途 |", "|---|---|---|---|"]
+    for t in tools:
+        ok = state.get(t["name"], False)
+        lines.append(f"| {t['name']} | {'✅ 已装' if ok else '⬜ 未装'} | `{t['install']}` | {t.get('run','')} |")
+    return "\n".join(lines)
+
+
+def render_datasets(datasets):
+    lines = ["| 数据集 | 地址 | 用途 |", "|---|---|---|"]
+    for ds in datasets:
+        lines.append(f"| {ds['name']} | {ds['url']} | {ds['note']} |")
+    return "\n".join(lines)
+
+
+def make_notebook(title, intro, code_title, code, note):
+    md = [f"# {title}\n\n", f"{intro}\n\n", f"**本层**：{code_title}\n"]
+    return {
+        "cells": [
+            {"cell_type": "markdown", "metadata": {}, "source": md},
+            {"cell_type": "code", "execution_count": None, "metadata": {},
+             "outputs": [], "source": [f"# {code_title}\n"] + code.splitlines(keepends=True)},
+            {"cell_type": "markdown", "metadata": {},
+             "source": ["## 结果解读\n\n", note + "\n"]},
+        ],
+        "metadata": {
+            "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+            "language_info": {"name": "python", "version": "3"},
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+
+def main():
+    if len(sys.argv) != 3:
+        print("usage: domain-workbench <judge-id> <target-dir>", file=sys.stderr)
+        return 2
+    judge_id, target = sys.argv[1], Path(sys.argv[2])
+    judges = json.loads(DATA.read_text())
+    judge = next((j for j in judges["judges"] if j["id"] == judge_id), None)
+    if judge is None:
+        print(f"unknown judge id: {judge_id}", file=sys.stderr)
+        return 1
+    cap = judge["capabilities"]; deep_ = cap["deep"]
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "data").mkdir(exist_ok=True)
+    (target / "workspace").mkdir(exist_ok=True)
+
+    state = {t["name"]: probe(t["check"]) for t in cap["tools"]}
+    pip_hint = ""
+    if cap.get("pip"):
+        missing = [p for p in cap["pip"] if not state.get(p, False)]
+        if missing:
+            pip_hint = ("可选升级（增强体验，非必需）：`pip install " + " ".join(missing) + "`\n")
+
+    roadmap = "\n".join(f"{i}. {s}" for i, s in enumerate(deep_["roadmap"], 1))
+    refs = "\n".join(f"- {r}" for r in deep_["references"])
+    l3_row = (f"L3 作品深化 | `l3_extend.py` / `.ipynb` | {deep_['l3']['title']}"
+              f" | `bash data/data_fetch.sh && python3 l3_extend.py` |")
+
+    (target / "README.md").write_text(
+        f"# {cap['title']}\n\n{cap['intro']}\n\n"
+        f"## 科学背景与方法\n\n{deep_['background']}\n\n"
+        f"## 三层工作流\n\n"
+        f"| 层 | 文件 | 作用 | 运行 |\n|---|---|---|---|\n"
+        f"| L1 开箱演示 | `launchpad.py` / `.ipynb` | {cap['workflow']['title']} | `python3 launchpad.py` |\n"
+        f"| L2 标准方法 | `l2_advanced.py` / `.ipynb` | {deep_['l2']['title']} | `python3 l2_advanced.py` |\n"
+        f"{l3_row}\n\n"
+        f"## 深化路线图\n\n{roadmap}\n\n"
+        f"## 真实数据集\n\n{render_datasets(deep_['datasets'])}\n\n"
+        f"## 参考文献\n\n{refs}\n\n"
+        f"## 工具链\n\n{render_tools(cap['tools'], state)}\n\n"
+        f"{pip_hint}\n"
+        f"## 目录约定\n\n"
+        f"- `data/`：该领域数据集与来源说明（演示用合成/内联数据，离线可跑）\n"
+        f"- `workspace/`：你的实验产物与中间文件\n"
+        f"- 实验记录用菜单「新建实验记录」写到 `~/science/notes/`，成果进 `~/science/exports/`\n",
+        encoding="utf-8")
+
+    (target / "launchpad.py").write_text(cap["workflow"]["code"], encoding="utf-8")
+    (target / "l2_advanced.py").write_text(deep_["l2"]["code"], encoding="utf-8")
+    (target / "l3_extend.py").write_text(deep_["l3"]["code"], encoding="utf-8")
+    # Optional real-data downloader, declared by the field's L3 block.
+    fetch = deep_["l3"].get("data_fetch", "")
+    (target / "data" / "data_fetch.sh").write_text(
+        fetch or "#!/bin/bash\necho '该领域未提供数据下载脚本；见 README.md 数据集表。'\n",
+        encoding="utf-8")
+    (target / "launchpad.ipynb").write_text(
+        json.dumps(make_notebook(cap["title"], cap["intro"],
+                                 cap["workflow"]["title"], cap["workflow"]["code"],
+                                 cap["workflow"]["note"]), ensure_ascii=False, indent=1),
+        encoding="utf-8")
+    (target / "l2_advanced.ipynb").write_text(
+        json.dumps(make_notebook(cap["title"] + " · L2 标准方法", deep_["background"],
+                                 deep_["l2"]["title"], deep_["l2"]["code"], deep_["l2"]["note"]),
+                   ensure_ascii=False, indent=1), encoding="utf-8")
+    (target / "l3_extend.ipynb").write_text(
+        json.dumps(make_notebook(cap["title"] + " · L3 作品深化", "真实数据接入与作品深化。",
+                                 deep_["l3"]["title"], deep_["l3"]["code"], deep_["l3"]["note"]),
+                   ensure_ascii=False, indent=1), encoding="utf-8")
+    (target / "data" / "README.md").write_text(
+        "把该领域数据集放在这里，并记录来源与许可。\n", encoding="utf-8")
+
+    print(f"领域深度工作台就绪：{target}")
+    print(f"  · L1 {cap['workflow']['title']}")
+    print(f"  · L2 {deep_['l2']['title']}")
+    print(f"  · L3 {deep_['l3']['title']}")
+    for t in cap["tools"]:
+        mark = "已装" if state[t["name"]] else "未装"
+        print(f"  · {t['name']:14s} [{mark}] 安装: {t['install']}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,173 @@
+#!/usr/bin/python3 -I
+"""Keep Spiker's Science Pal's research rows in the user's menu extension.
+
+Mirrors spikers-science-pal/menu-entries: the rows are injected into
+~/.config/omarchy/extensions/omarchy-menu.jsonc (the upstream menu file the
+Spiker's Science Pal shell reads), with a marker in
+~/.local/state/spikers-science-pal-research so rows the user deletes stay
+deleted and a later release adds only its new rows.
+"""
+
+import json
+import os
+from pathlib import Path
+import re
+import sys
+import tempfile
+
+MAXIMUM_BYTES = 256 * 1024
+HEADER = "  // Spiker's Science Pal research: workbench and 15-judge guide rows (added once each; safe to remove).\n"
+JUDGE_ICON = "\U000f01da"
+
+
+def own(entry):
+    return lambda spikers: entry
+
+
+# (key, release that added it, builder). Keys are namespaced under workbench.
+ROWS = (
+    ("workbench.judges", 1, own({
+        "icon": "\U000f01da", "label": "评委导览（15 位评委）",
+        "description": "按领域给评委展示作品", "action": "spikers-science-pal-open-judge overview"})),
+    ("workbench.new-note", 1, own({
+        "icon": "\U000f0237", "label": "新建实验记录",
+        "description": "在 ~/science/notes 创建带日期的实验笔记",
+        "action": "omarchy-launch-floating-terminal-with-presentation /usr/bin/spikers-science-pal-new-note"})),
+    ("workbench.literature", 1, own({
+        "icon": "\U000f0881", "label": "文献库（Zotero）",
+        "when": "command -v zotero", "action": "zotero"})),
+    ("workbench.jupyter", 1, own({
+        "icon": "\U000f16be", "label": "Jupyter Lab",
+        "when": "command -v jupyter",
+        "action": "omarchy-launch-floating-terminal-with-presentation jupyter lab"})),
+    ("workbench.science-dir", 1, own({
+        "icon": "\U000f00af", "label": "科研工作台目录",
+        "description": "打开 ~/science", "action": 'xdg-open "$HOME/science"'})),
+    ("workbench.exports", 1, own({
+        "icon": "\U000f0079", "label": "作品包·导出",
+        "description": "打开 ~/science/exports", "action": 'xdg-open "$HOME/science/exports"'})),
+)
+RELEASE = 1
+
+
+def judge_rows():
+    """One menu row per judge's research function, from the packaged list."""
+    data_path = Path(os.environ.get("SPIKERS_SCIENCE_PAL_JUDGES_DATA")
+                     or "/usr/share/spikers-science-pal-research/judges.json")
+    try:
+        data = json.loads(data_path.read_text())
+    except (OSError, ValueError):
+        return []
+    rows = [("judges.overview", RELEASE, own({
+        "icon": JUDGE_ICON, "label": data["overview"]["menu_label"],
+        "action": "spikers-science-pal-domain overview"}))]
+    for j in data["judges"]:
+        cap = j.get("capabilities", {})
+        rows.append((f"judges.{j['id']}", RELEASE, own({
+            "icon": JUDGE_ICON,
+            "label": f"{j['research']} · 科研功能台",
+            "description": f"{j['name_zh']}老师领域 · {cap.get('title', '')}",
+            "action": f"spikers-science-pal-domain {j['id']}"})))
+    return rows
+
+
+def parse_jsonc(text):
+    # The Spiker's Science Pal menu parser: whole-line comments and trailing commas.
+    text = re.sub(r"^\s*//[^\n]*(\n|$)", "", text, flags=re.M)
+    return json.loads(re.sub(r",(\s*[}\]])", r"\1", text))
+
+
+def spikers_rows():
+    path = Path(os.environ.get("SPIKERS_SCIENCE_PAL_SPIKERS_MENU")
+                or Path(os.environ.get("OMARCHY_PATH") or "/usr/share/omarchy") / "default/omarchy/omarchy-menu.jsonc")
+    try:
+        rows = parse_jsonc(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return rows if isinstance(rows, dict) else {}
+
+
+def render(key, entry):
+    return f'  "{key}": {json.dumps(entry, ensure_ascii=False, separators=(",", ":"))},\n'
+
+
+def added_release(state):
+    marker = state / "spikers-science-pal-research/menu-entries"
+    if marker.is_file():
+        try:
+            return int(marker.read_text().strip())
+        except ValueError:
+            return RELEASE
+    return 0
+
+
+def write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
+    with os.fdopen(descriptor, "w") as output:
+        output.write(text)
+    os.chmod(temporary, 0o644)
+    os.replace(temporary, path)
+
+
+def main():
+    home = Path(os.environ["HOME"])
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config")
+    state = Path(os.environ.get("XDG_STATE_HOME") or home / ".local/state")
+    path = config / "omarchy/extensions/omarchy-menu.jsonc"
+    written_path = state / "spikers-science-pal-research/menu-rows.json"
+    if path.is_symlink():
+        return 0
+
+    if path.exists():
+        if path.stat().st_size > MAXIMUM_BYTES:
+            return 0
+        text = path.read_text()
+        opening = text.find("{")
+        if opening < 0 or text[:opening].strip() or text.rstrip()[-1:] != "}":
+            return 0  # not a plain JSONC object; leave the user's file alone
+    else:
+        text = "{\n}\n"
+        opening = 0
+    original = text
+    try:
+        written = json.loads(written_path.read_text())
+        if not isinstance(written, dict):
+            written = {}
+    except (OSError, ValueError):
+        written = {}
+
+    done = added_release(state)
+    spikers = spikers_rows()
+    new_rows = ""
+    for key, release, build in ROWS + tuple(judge_rows()):
+        entry = build(spikers)
+        row = render(key, entry) if entry else None
+        line = re.search(rf'^  "{re.escape(key)}":[^\n]*\n', text, re.M)
+        if line or f'"{key}"' in text:
+            current = line.group(0) if line else None
+            if row and current and current != row and current == written.get(key):
+                text = text.replace(current, row, 1)
+                written[key] = row
+            elif row and current == row:
+                written[key] = row
+            continue
+        if release > done and row:
+            new_rows += row
+            written[key] = row
+
+    if new_rows:
+        if "// Spiker's Science Pal research:" not in text:
+            new_rows = HEADER + new_rows
+        opening = text.find("{")
+        text = text[: opening + 1] + "\n" + new_rows + text[opening + 1:].lstrip("\n")
+    if text != original:
+        write(path, text)
+    write(written_path, json.dumps(written, ensure_ascii=False, indent=1) + "\n")
+    marker = state / "spikers-science-pal-research/menu-entries"
+    marker.write_text(f"{RELEASE}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

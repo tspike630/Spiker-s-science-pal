@@ -1,0 +1,62 @@
+#!/bin/bash
+# Enter a judge's research workbench: builds ~/science/domains/<id>/ with a
+# runnable launchpad (py + ipynb) and tools table, then opens the field
+# environment — Jupyter Lab when installed, otherwise the directory plus a
+# terminal menu. `overview` opens the 15-field capability matrix page.
+#   spikers-science-pal-domain [overview|<judge-id>]
+
+set -euo pipefail
+
+id=${1:-overview}
+data=${SPIKERS_SCIENCE_PAL_JUDGES_DATA:-/usr/share/spikers-science-pal-research/judges.json}
+port=${SPIKERS_SCIENCE_PAL_SHOWCASE_PORT:-8765}
+home=${HOME:?}
+science=${SCIENCE_ROOT:-"$home/science"}
+init_cmd=${SPIKERS_SCIENCE_PAL_RESEARCH_INIT:-/usr/bin/spikers-science-pal-research-init}
+generate_cmd=${SPIKERS_SCIENCE_PAL_GENERATE_SHOWCASE:-/usr/lib/spikers-science-pal-research/generate-showcase}
+workbench_cmd=${SPIKERS_SCIENCE_PAL_DOMAIN_WORKBENCH:-/usr/lib/spikers-science-pal-research/domain-workbench}
+server_cmd=${SPIKERS_SCIENCE_PAL_SHOWCASE_SERVER:-/usr/bin/spikers-science-pal-showcase-server}
+
+# Seed the workbench once so ~/science/{projects,notes,data,...} exist.
+"$init_cmd" >/dev/null
+
+# --- overview: capability matrix page --------------------------------------
+if [[ $id == overview ]]; then
+  "$generate_cmd" >/dev/null
+  if ! (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+    if ! systemctl --user start spikers-science-pal-showcase.service 2>/dev/null; then
+      nohup "$server_cmd" >/dev/null 2>&1 &
+    fi
+    for _ in $(seq 1 20); do
+      if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then break; fi
+      sleep 0.25
+    done
+  fi
+  xdg-open "http://127.0.0.1:$port/" >/dev/null 2>&1 || true
+  echo "已打开 15 领域科研功能矩阵：http://127.0.0.1:$port/"
+  exit 0
+fi
+
+# --- judge domain: build the field workbench -------------------------------
+if ! python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+ok = any(j["id"] == sys.argv[2] for j in d["judges"])
+sys.exit(0 if ok else 1)
+' "$data" "$id"; then
+  echo "未知领域 id: $id（用 overview 或 judges.json 中的 id）" >&2
+  exit 1
+fi
+
+dir="$science/domains/$id"
+mkdir -p "$dir/data" "$dir/workspace"
+"$workbench_cmd" "$id" "$dir"
+
+# --- open the field environment --------------------------------------------
+if command -v jupyter >/dev/null 2>&1; then
+  echo "启动 Jupyter Lab：$dir"
+  exec jupyter lab --notebook-dir "$dir" --no-browser 2>/dev/null || \
+    exec jupyter notebook --notebook-dir "$dir" --no-browser
+fi
+echo "（未安装 Jupyter；已打开领域目录，可运行 python3 launchpad.py）"
+xdg-open "$dir" >/dev/null 2>&1 || true

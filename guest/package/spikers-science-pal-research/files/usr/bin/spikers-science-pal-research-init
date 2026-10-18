@@ -1,0 +1,30 @@
+#!/bin/bash
+# Seed the Spiker's Science Pal research workbench under ~/science, once per
+# user. Idempotent: creates the directory layout and the workbench README only
+# where nothing exists yet, so later edits and data stay untouched.
+
+set -euo pipefail
+
+home=${HOME:?}
+science=${SCIENCE_ROOT:-"$home/science"}
+
+mkdir -p "$science"/{projects,notes,data,showcase,exports,statements}
+
+if [[ ! -f $science/README.md ]]; then
+  cat >"$science/README.md" <<'EOF'
+# Spiker's Science Pal · 科研工作台
+
+- projects/    作品代码仓库（git），按选题组织
+- notes/       实验记录：由菜单「新建实验记录」生成带日期的笔记
+- data/        数据集与来源说明
+- showcase/    评委导览内容：judges/<id>/index.md；编辑后从菜单重新打开评委页即刷新
+- exports/     Agent 配置/工作流导出、技术报告（比赛鼓励提交项）
+- statements/  原创性与资源使用声明
+
+评委导览页由 /usr/share/spikers-science-pal-research/judges.json
+与本目录下 showcase/ 的 Markdown 生成，服务在 127.0.0.1:8765。
+Mac 端可在 App 设置里把 8765 端口转发出来，用 Mac 浏览器直接打开。
+EOF
+fi
+
+echo "research workbench ready at $science"

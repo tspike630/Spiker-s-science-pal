@@ -1,0 +1,11 @@
+[Unit]
+Description=Seed Spiker's Science Pal research workbench and menu rows
+PartOf=graphical-session.target
+After=graphical-session.target spikers-science-pal-session.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/spikers-science-pal-research/research-session
+
+[Install]
+WantedBy=graphical-session.target

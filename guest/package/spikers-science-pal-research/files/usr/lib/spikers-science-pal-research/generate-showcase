@@ -1,0 +1,153 @@
+#!/usr/bin/python3 -I
+"""Generate the 15-field research function matrix site.
+
+Reads /usr/share/spikers-science-pal-research/judges.json and renders:
+  index.html            — the capability matrix: one card per judge's field,
+                          listing the field workbench title, tools, workflow.
+  judges/<id>/index.html — per-field detail: intro, tools table, pip hints and
+                          the runnable workflow code preview.
+
+This is a *function map* (what each field workbench can do), not a slide deck:
+the menu's real action (spikers-science-pal-domain) opens Jupyter/launchpad
+inside ~/science/domains/<id>/. Output goes to
+$XDG_DATA_HOME/spikers-science-pal-research/showcase, served on
+127.0.0.1:8765 by spikers-science-pal-showcase-server.
+"""
+
+import html
+import json
+import os
+from pathlib import Path
+import shutil
+import sys
+
+DATA = Path(os.environ.get("SPIKERS_SCIENCE_PAL_JUDGES_DATA")
+             or "/usr/share/spikers-science-pal-research/judges.json")
+BRAND = "Spiker's Science Pal"
+PORT = os.environ.get("SPIKERS_SCIENCE_PAL_SHOWCASE_PORT", "8765")
+
+
+def page(title, body):
+    return f"""<!doctype html>
+<html lang="zh-Hans"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{html.escape(title)} · {BRAND} 科研功能矩阵</title>
+<style>
+:root {{ color-scheme: dark; }}
+body {{ margin:0; background:#0d1117; color:#e6edf3; font:16px/1.7 system-ui,-apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif; }}
+header {{ padding:1.2rem 2rem; background:#161b22; border-bottom:1px solid #30363d; }}
+header h1 {{ margin:0; font-size:1.15rem; }}
+header .sub {{ color:#8b949e; font-size:.85rem; }}
+main {{ max-width:920px; margin:2rem auto; padding:0 1.5rem 4rem; }}
+.card {{ background:#161b22; border:1px solid #30363d; border-radius:10px; padding:1.2rem 1.5rem; margin-bottom:1.2rem; }}
+.card h2 {{ margin-top:0; color:#58a6ff; }}
+.tag {{ display:inline-block; background:#1f6feb22; color:#79c0ff; border:1px solid #1f6feb55; border-radius:999px; padding:.1rem .7rem; font-size:.8rem; margin:.15rem .3rem .15rem 0; }}
+a {{ color:#58a6ff; text-decoration:none; }} a:hover {{ text-decoration:underline; }}
+nav {{ margin:1rem 0; font-size:.9rem; }} nav a {{ margin-right:1rem; }}
+pre,code {{ background:#0d1117; border:1px solid #30363d; border-radius:6px; }}
+pre {{ padding:1rem; overflow:auto; max-height:420px; }} code {{ padding:.1rem .4rem; }}
+table {{ border-collapse:collapse; width:100%; }} th,td {{ border:1px solid #30363d; padding:.4rem .7rem; text-align:left; }}
+.grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:.8rem; }}
+.grid a {{ display:block; background:#161b22; border:1px solid #30363d; border-radius:10px; padding:.9rem 1rem; height:100%; }}
+.grid a:hover {{ border-color:#58a6ff; }}
+.muted {{ color:#8b949e; }}
+</style></head>
+<body><header>
+<h1>{BRAND} · 15 领域科研功能矩阵</h1>
+<div class="sub">AI4Science Hackathon · 每行菜单 = 一个领域可运行的科研工作台 · 本机 {html.escape('127.0.0.1:' + PORT)}</div>
+</header><main>
+{body}
+</main></body></html>"""
+
+
+def tools_table(tools):
+    rows = ["<table><tr><th>工具</th><th>安装</th><th>用途</th></tr>"]
+    for t in tools:
+        rows.append(f"<tr><td>{html.escape(t['name'])}</td>"
+                    f"<td><code>{html.escape(t['install'])}</code></td>"
+                    f"<td>{html.escape(t.get('run', ''))}</td></tr>")
+    rows.append("</table>")
+    return "".join(rows)
+
+
+def main():
+    data = json.loads(DATA.read_text())
+    overview, judges = data["overview"], data["judges"]
+    home = Path(os.environ["HOME"])
+    out = (Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")
+           / "spikers-science-pal-research" / "showcase")
+    shutil.rmtree(out, ignore_errors=True)
+    (out / "judges").mkdir(parents=True)
+
+    # Overview: capability matrix, one card per field.
+    body = [f"<div class='card'><h2>{html.escape(overview['name_zh'])}</h2>"
+            f"<p>{html.escape(overview['focus'])}</p></div>",
+            "<div class='grid'>"]
+    for j in judges:
+        cap = j["capabilities"]
+        wf = cap["workflow"]["title"]
+        l2 = cap["deep"]["l2"]["title"]
+        l3 = cap["deep"]["l3"]["title"]
+        tools = " · ".join(t["name"] for t in cap["tools"])
+        body.append(
+            f"<a href='judges/{j['id']}/'><b>{html.escape(j['name_zh'])}</b> "
+            f"<span class='muted'>{html.escape(j['research'])}</span><br>"
+            f"<span class='tag'>{html.escape(cap['title'])}</span><br>"
+            f"<span class='muted' style='font-size:.85rem'>L1 {html.escape(wf)}</span><br>"
+            f"<span class='muted' style='font-size:.82rem'>L2 {html.escape(l2)}</span><br>"
+            f"<span class='muted' style='font-size:.82rem'>L3 {html.escape(l3)}</span><br>"
+            f"<span class='muted' style='font-size:.8rem'>工具：{html.escape(tools)}</span></a>")
+    body.append("</div>")
+    body.append("<div class='card muted' style='font-size:.85rem'>"
+                "菜单里点开任一领域，会直接进入该领域的科研工作台"
+                "（Jupyter Lab 或 launchpad.py），本页只是能力地图，"
+                "供总览与答辩快速呈现 15 个领域的完整功能覆盖。</div>")
+    (out / "index.html").write_text(page(overview["name_zh"], "".join(body)), encoding="utf-8")
+
+    # Per-field detail pages.
+    for idx, j in enumerate(judges):
+        cap = j["capabilities"]; wf = cap["workflow"]; dp = cap["deep"]
+        datasets = "".join(
+            f"<li><b>{html.escape(d['name'])}</b> — <code>{html.escape(d['url'])}</code>"
+            f"<span class='muted'> · {html.escape(d['note'])}</span></li>" for d in dp["datasets"])
+        refs = "".join(f"<li>{html.escape(r)}</li>" for r in dp["references"])
+        roadmap = "".join(f"<li>{html.escape(s)}</li>" for s in dp["roadmap"])
+        body = [
+            f"<div class='card'><h2>{html.escape(cap['title'])}</h2>"
+            f"<p>{html.escape(cap['intro'])}</p>"
+            f"<p><span class='tag'>{html.escape(j['research'])}</span>"
+            f"<span class='tag'>{html.escape(j['name_zh'])}</span></p></div>",
+            f"<div class='card'><h2>三层工作流</h2>"
+            f"<table><tr><th>层</th><th>内容</th><th>运行</th></tr>"
+            f"<tr><td>L1 开箱演示</td><td>{html.escape(wf['title'])}</td>"
+            f"<td><code>python3 launchpad.py</code></td></tr>"
+            f"<tr><td>L2 标准方法</td><td>{html.escape(dp['l2']['title'])}</td>"
+            f"<td><code>python3 l2_advanced.py</code></td></tr>"
+            f"<tr><td>L3 作品深化</td><td>{html.escape(dp['l3']['title'])}</td>"
+            f"<td><code>python3 l3_extend.py</code></td></tr></table>"
+            f"<p class='muted'>目录：<code>~/science/domains/{j['id']}/</code> · "
+            f"菜单点该领域直接进入（有 Jupyter 开 Lab，否则打开目录）</p></div>",
+            f"<div class='card'><h2>科学背景</h2><p>{html.escape(dp['background'])}</p>"
+            f"<h2>真实数据集</h2><ul>{datasets}</ul>"
+            f"<h2>参考文献</h2><ul>{refs}</ul>"
+            f"<h2>深化路线图</h2><ol>{roadmap}</ol></div>",
+            f"<div class='card'><h2>工具链</h2>{tools_table(cap['tools'])}"
+            f"<p class='muted'>可选升级：<code>{html.escape(' '.join(cap.get('pip', [])))}</code></p></div>",
+            f"<div class='card'><h2>L2 代码预览（{html.escape(dp['l2']['title'])}）</h2>"
+            f"<pre>{html.escape(dp['l2']['code'])}</pre></div>",
+        ]
+        prev = (f"<a href='../{judges[idx-1]['id']}/'>← {judges[idx-1]['name_zh']} 领域</a>"
+                if idx > 0 else "")
+        nxt = (f"<a href='../{judges[idx+1]['id']}/'>{judges[idx+1]['name_zh']} 领域 →</a>"
+               if idx + 1 < len(judges) else "")
+        body.append(f"<nav><a href='../..'>能力矩阵总览</a>{prev}{nxt}</nav>")
+        (out / "judges" / j["id"]).mkdir(exist_ok=True)
+        (out / "judges" / j["id"] / "index.html").write_text(
+            page(f"{j['name_zh']} · {cap['title']}", "".join(body)), encoding="utf-8")
+
+    print(f"capability matrix written to {out} ({len(judges) + 1} pages)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

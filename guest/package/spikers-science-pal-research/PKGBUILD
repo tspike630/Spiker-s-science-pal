@@ -1,0 +1,29 @@
+# Maintainer: Spiker's Science Pal <https://github.com/tspike630/Spiker-s-science-pal>
+#
+# The research workbench for the AI4Science Hackathon: a judge-showcase site
+# with one menu entry per judge domain (from the 15 invited researchers), the
+# experiment-note generator and the ~/science directory layout. It follows the
+# same rules as the spikers-science-pal package: no file another package owns
+# is edited; customisation goes through the user's menu extension and the
+# user-editable content in ~/science/showcase.
+
+pkgname=spikers-science-pal-research
+pkgver=0.3.0
+pkgrel=1
+pkgdesc="Deep research workbench for Spiker's Science Pal: 15 judge-domain three-level (L1/L2/L3) field workbenches, experiment notes and the ~/science layout"
+arch=('any')
+url='https://github.com/tspike630/Spiker-s-science-pal'
+license=('MIT')
+depends=(
+  'spikers-science-pal'
+  'python'
+  'python-markdown'
+  'xdg-utils'
+)
+install=spikers-science-pal-research.install
+options=('!debug' '!strip')
+
+package() {
+  cp -r --preserve=mode "$startdir/files/." "$pkgdir/"
+  install -Dm0644 "$startdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

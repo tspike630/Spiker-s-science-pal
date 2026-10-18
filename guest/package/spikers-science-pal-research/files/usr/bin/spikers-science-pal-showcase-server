@@ -1,0 +1,16 @@
+#!/bin/bash
+# Serve the generated judge-showcase site on 127.0.0.1 only (loopback). The
+# Mac app's port forwarding can expose it to the Mac's browser.
+# Port: SPIKERS_SCIENCE_PAL_SHOWCASE_PORT (default 8765).
+
+set -euo pipefail
+
+home=${HOME:?}
+port=${SPIKERS_SCIENCE_PAL_SHOWCASE_PORT:-8765}
+dir="${XDG_DATA_HOME:-$home/.local/share}/spikers-science-pal-research/showcase"
+
+if [[ ! -f $dir/index.html ]]; then
+  /usr/lib/spikers-science-pal-research/generate-showcase >/dev/null
+fi
+
+exec python3 -m http.server "$port" --bind 127.0.0.1 --directory "$dir"
