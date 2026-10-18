@@ -28,7 +28,7 @@ def own(entry):
 ROWS = (
     ("workbench.judges", 1, own({
         "icon": "\U000f01da", "label": "评委导览（15 位评委）",
-        "description": "按领域给评委展示作品", "action": "spikers-science-pal-open-judge overview"})),
+        "description": "打开 15 个领域的功能矩阵", "action": "spikers-science-pal-domain overview"})),
     ("workbench.new-note", 1, own({
         "icon": "\U000f0237", "label": "新建实验记录",
         "description": "在 ~/science/notes 创建带日期的实验笔记",
