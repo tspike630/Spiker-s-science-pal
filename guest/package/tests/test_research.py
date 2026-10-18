@@ -86,9 +86,13 @@ class ResearchPackage(unittest.TestCase):
                 self.assertIsNotNone(first, judge["id"])
                 meta = json.loads((work / "workspace" / "experiments.json").read_text(encoding="utf-8"))
                 self.assertEqual(meta["headline"], html.unescape(first.group(1)))
-                self.assertEqual(meta["domain"], judge["id"])
+                self.assertEqual(meta["domain"], "")
+                self.assertEqual(meta["source"], "合成数据冒烟")
+                self.assertEqual(meta["artifacts"][0].endswith(".csv") or meta["artifacts"][0].endswith(".txt"), True)
                 self.assertIs(meta["real"], judge["id"] in {"09-wang-maolin", "14-liu-jiayu"})
                 self.assertIn("report.html", meta["artifacts"])
+                pack = (work / "exports" / "答辩素材-unknown.md").read_text(encoding="utf-8")
+                self.assertIn("结论：" + meta["headline"], pack)
 
     def test_menu_injection_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -172,8 +176,27 @@ class ResearchPackage(unittest.TestCase):
             fetch = target / "data" / "data_fetch.sh"
             self.assertTrue(fetch.stat().st_mode & 0o111)
             self.assertTrue((target / "l3_extend.py").is_file())
+            self.assertIn("_CTX = ", (target / "l3_extend.py").read_text(encoding="utf-8"))
             self.assertTrue((target / "l3_extend.ipynb").is_file())
-            shutil.rmtree(target)
+            judges = json.loads(JUDGES.read_text())
+            for judge in judges["judges"]:
+                desk = Path(directory) / judge["id"]
+                built = subprocess.run(
+                    ["python3", str(LIB / "domain-workbench"), judge["id"], str(desk)],
+                    env=env, capture_output=True, text=True)
+                self.assertEqual(built.returncode, 0, built.stderr)
+                ran = subprocess.run(["python3", "l3_extend.py"], cwd=desk, capture_output=True, text=True, timeout=120)
+                self.assertEqual(ran.returncode, 0, (judge["id"], ran.stderr[-300:]))
+                page = (desk / "workspace" / "report.html").read_text(encoding="utf-8")
+                opening = re.search(r"<p class='(?:ok|warn)'>(.*?)</p>", page)
+                self.assertIsNotNone(opening, judge["id"])
+                meta = json.loads((desk / "workspace" / "experiments.json").read_text(encoding="utf-8"))
+                self.assertEqual(meta["domain"], judge["id"])
+                self.assertEqual(meta["judge"], judge["name_zh"])
+                self.assertEqual(meta["headline"], html.unescape(opening.group(1)))
+                brief = (desk / "exports" / "答辩素材-{}.md".format(judge["id"])).read_text(encoding="utf-8")
+                self.assertIn("结论：" + meta["headline"], brief)
+                self.assertTrue((desk / "workspace" / "figures" / "key-table.md").is_file())
 
 
 if __name__ == "__main__":

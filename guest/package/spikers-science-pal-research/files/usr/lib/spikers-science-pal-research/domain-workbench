@@ -25,6 +25,25 @@ import sys
 DATA = Path(os.environ.get("SPIKERS_SCIENCE_PAL_JUDGES_DATA")
              or "/usr/share/spikers-science-pal-research/judges.json")
 
+# One question a judge can ask after reading this field's L3 table.
+ASK = {
+    "01-ma-weiying": "主题词里如果还有 the、and，这张图能不能用来判断选题空缺？",
+    "02-yan-jun": "性别对生存的差异，按 ECOG 分层之后还在不在？",
+    "03-xu-kaidi": "structure 比 vision 准，第二路是另一个传感器，还是同一张图的切块？",
+    "04-miao-ning": "氨基酸组成有没有把激酶和蛋白酶分成两族？",
+    "05-wang-zhenbin": "能不能按掺杂元素交一份吸附能候选名单？",
+    "06-wang-li": "整段基频和按能量中位数切开的段数，是不是这句话的结构？",
+    "07-guo-xingyu": "去掉重复和非法日期之后，这几百条行程还能不能代表城市高峰？",
+    "08-zhang-yuying": "富集因子有没有把分子和它自己比进去？",
+    "09-wang-maolin": "三个优化器的终值有没有真正解出 Rosenbrock？",
+    "10-zheng-xiang": "度最高的节点是不是某个社区内部的代表？",
+    "11-chen-weiyu": "判别力在前几列运动学特征，还是在高层导出特征？",
+    "12-zhao-yinggong": "文学语料学出的词表能不能切科学提示？",
+    "13-wang-yao": "圆度等于 1 的行能不能参加病灶形状比较？",
+    "14-liu-jiayu": "短路径上两种算法步数相同，能不能据此选规划器？",
+    "15-liu-gang": "这个峰是不是这份运动想象记录上的 P300？",
+}
+
 
 def probe(check):
     """True if the tool's check command exits 0."""
@@ -82,6 +101,8 @@ def main():
     target.mkdir(parents=True, exist_ok=True)
     (target / "data").mkdir(exist_ok=True)
     (target / "workspace").mkdir(exist_ok=True)
+    (target / "workspace" / "figures").mkdir(exist_ok=True)
+    (target / "exports").mkdir(exist_ok=True)
 
     state = {t["name"]: probe(t["check"]) for t in cap["tools"]}
     pip_hint = ""
@@ -116,7 +137,14 @@ def main():
 
     (target / "launchpad.py").write_text(cap["workflow"]["code"], encoding="utf-8")
     (target / "l2_advanced.py").write_text(deep_["l2"]["code"], encoding="utf-8")
-    (target / "l3_extend.py").write_text(deep_["l3"]["code"], encoding="utf-8")
+    # 注入领域上下文，report() 据此写 experiments.json 和答辩素材。
+    _ctx = {
+        "domain": judge_id,
+        "judge": judge.get("name_zh") or judge.get("name", ""),
+        "ask": ASK.get(judge_id, ""),
+    }
+    l3_code = "_CTX = {}\n".format(json.dumps(_ctx, ensure_ascii=False)) + deep_["l3"]["code"]
+    (target / "l3_extend.py").write_text(l3_code, encoding="utf-8")
     # Optional real-data downloader, declared by the field's L3 block.
     fetch = deep_["l3"].get("data_fetch", "")
     fetch_path = target / "data" / "data_fetch.sh"
@@ -135,7 +163,7 @@ def main():
                    ensure_ascii=False, indent=1), encoding="utf-8")
     (target / "l3_extend.ipynb").write_text(
         json.dumps(make_notebook(cap["title"] + " · L3 作品深化", "真实数据接入与作品深化。",
-                                 deep_["l3"]["title"], deep_["l3"]["code"], deep_["l3"]["note"]),
+                                 deep_["l3"]["title"], l3_code, deep_["l3"]["note"]),
                    ensure_ascii=False, indent=1), encoding="utf-8")
     (target / "data" / "README.md").write_text(
         "真实数据放在 raw/。运行 bash data_fetch.sh 下载（已有文件会跳过），"
