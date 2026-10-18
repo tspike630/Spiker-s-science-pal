@@ -50,7 +50,7 @@ help:
 	  '  make publish        Push the release tag and attach the DMG and image to its GitHub draft' \
 	  '' \
 	  'Component builds:' \
-	  '  make guest          Ensure dist/guest (spikers-science-pal package and factory disk) is current (Docker)' \
+	  '  make guest          Ensure dist/guest (both packages and the factory disk) is current (Docker)' \
 	  '  make guest-package  Rebuild the integration and research packages; the factory disk installs both' \
 	  '  make runtime        Ensure macos/.build/qemu-gpu-runtime is current' \
 	  '  make firmware       Stage the UEFI firmware from the pinned QEMU source' \
