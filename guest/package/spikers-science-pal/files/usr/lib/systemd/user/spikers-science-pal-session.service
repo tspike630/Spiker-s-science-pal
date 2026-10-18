@@ -1,0 +1,11 @@
+[Unit]
+Description=Apply Spiker's Science Pal's per-user Mac VM setup
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/spikers-science-pal/user-setup --reload
+
+[Install]
+WantedBy=graphical-session.target

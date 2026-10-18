@@ -1,0 +1,12 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Target = usr/bin/ghostty
+Target = usr/lib/spikers-science-pal/ghostty-desktop-entry
+
+[Action]
+Description = Routing Ghostty through Spiker's Science Pal's software renderer...
+When = PostTransaction
+Exec = /usr/lib/spikers-science-pal/ghostty-desktop-entry

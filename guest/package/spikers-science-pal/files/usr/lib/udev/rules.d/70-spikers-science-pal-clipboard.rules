@@ -1,0 +1,1 @@
+SUBSYSTEM=="virtio-ports", ATTR{name}=="dev.spikerssciencepal.clipboard", GROUP="users", MODE="0660", TAG+="uaccess"

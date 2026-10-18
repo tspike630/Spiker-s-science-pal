@@ -1,0 +1,9 @@
+[Trigger]
+Type = Path
+Operation = Remove
+Target = usr/lib/spikers-science-pal/ghostty-desktop-entry
+
+[Action]
+Description = Removing Spiker's Science Pal's Ghostty desktop entry...
+When = PreTransaction
+Exec = /usr/lib/spikers-science-pal/ghostty-desktop-entry --remove

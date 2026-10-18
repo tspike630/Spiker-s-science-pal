@@ -1,0 +1,67 @@
+From: Spiker's Science Pal contributors
+Subject: [PATCH] cocoa: re-enable the full grab tap after macOS disables it
+
+Applies after the Spiker's Science Pal full-grab-focus patch.
+
+macOS owns the lifetime of a CGEventTap, not the process that created it.
+When a tap's callback returns too slowly the window server disables the tap
+and delivers kCGEventTapDisabledByTimeout; a tap can also be switched off
+with kCGEventTapDisabledByUserInput. Recovery requires the owner to call
+CGEventTapEnable again. setFullGrab never does, and handleTapEvent does not
+look at the event type at all, so the first timeout ends system-shortcut
+capture for the rest of the session.
+
+Neither notification is a key event, so +[NSEvent eventWithCGEvent:] returns
+nil for it and handleEvent reports that it consumed nothing. The tap dies
+silently, with no warning and no way back.
+
+The resulting failure is asymmetric, which makes it easy to misread as a
+guest problem. Ordinary Command chords keep reaching the guest, because the
+preceding patch routes those through key-window focus rather than through
+the tap. Only the system shortcuts that need the HID tap to pre-empt macOS
+still depend on it, so Command-Space in particular starts opening Spotlight
+on the host -- or Siri, which macOS binds to the same chord held down --
+and keeps doing so until the VM is restarted.
+
+Re-enable the tap when either notification arrives. This is a recovery path,
+not a way to defeat the timeout: if the callback is still too slow the window
+server simply disables the tap again.
+
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -354,6 +354,7 @@
+ - (void) notifyMouseModeChange;
+ - (BOOL) isMouseGrabbed;
+ - (BOOL) isKeyboardCaptured;
++- (void) reenableEventTap;
+ - (void) raiseAllKeys;
+ @end
+ 
+@@ -362,6 +363,12 @@
+ static CGEventRef handleTapEvent(CGEventTapProxy proxy, CGEventType type, CGEventRef cgEvent, void *userInfo)
+ {
+     QemuCocoaView *view = userInfo;
++    if (type == kCGEventTapDisabledByTimeout ||
++        type == kCGEventTapDisabledByUserInput) {
++        [view reenableEventTap];
++        return cgEvent;
++    }
++
+     NSEvent *event = [NSEvent eventWithCGEvent:cgEvent];
+     if (getenv("SPIKERSSCIENCEPAL_INPUT_OBSERVE_ONLY")) {
+         [view isKeyboardCaptured];
+@@ -1337,6 +1344,14 @@
+     return captured;
+ }
+ 
++/* macOS can disable a slow tap; restore capture after either notification. */
++- (void) reenableEventTap
++{
++    if (eventsTap) {
++        CGEventTapEnable(eventsTap, true);
++    }
++}
++
+ /*
+  * Makes the target think all down keys are being released.
+  * This prevents a stuck key problem, since we will not see

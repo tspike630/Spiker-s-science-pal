@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Spiker's Science Pal Settings
+Comment=Open the Spiker's Science Pal Mac app settings
+Exec=spikers-native-settings
+TryExec=spikers-native-settings
+Icon=/usr/share/pixmaps/omarchy.png
+NoDisplay=true
+Terminal=false
+Categories=Settings;
+Keywords=Mac;VM;Startup;

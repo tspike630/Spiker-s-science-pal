@@ -1,0 +1,23 @@
+#!/bin/bash
+# Offer Spiker's Science Pal's Ghostty desktop entry only while Ghostty is installed.
+#
+# The entry shadows Ghostty's own (the same desktop ID, earlier in
+# XDG_DATA_DIRS) to start Ghostty through the software-renderer wrapper.
+# Spiker's Science Pal's launcher ignores TryExec, so while Ghostty is missing the entry
+# would be listed and fail. Pacman hooks run this after Ghostty or this
+# package is installed, upgraded or removed; --remove takes the link away
+# before this package is removed.
+
+set -euo pipefail
+
+source=${SPIKERS_SCIENCE_PAL_GHOSTTY_ENTRY:-/usr/share/spikers-science-pal/ghostty/com.mitchellh.ghostty.desktop}
+applications=${SPIKERS_SCIENCE_PAL_XDG_APPLICATIONS:-/usr/share/spikers-science-pal/xdg/applications}
+ghostty=${SPIKERS_SCIENCE_PAL_GHOSTTY:-/usr/bin/ghostty}
+link=$applications/com.mitchellh.ghostty.desktop
+
+if [[ ${1:-} != --remove && -x $ghostty && -f $source ]]; then
+  mkdir -p "$applications"
+  [[ $(readlink "$link" 2>/dev/null) == "$source" ]] || ln -sfn "$source" "$link"
+else
+  rm -f "$link"
+fi

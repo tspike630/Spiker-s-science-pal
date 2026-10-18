@@ -1,0 +1,231 @@
+# Host battery
+
+Spiker's Science Pal mirrors the Mac's battery into the guest as a real
+`/sys/class/power_supply` device: `BAT0` and `ADP0`. Spiker's Science Pal Quattro's bar is
+Quickshell, and Quickshell's `UPower` bindings read that sysfs tree, so the bar
+shows the Mac's battery charge and charging state with no configuration. The
+host time estimates reach sysfs; see "Time estimates" below for the bar. The
+device is honest about where it comes from — manufacturer `Apple`, model
+`Mac Battery` — but named `BAT0`/`ADP0` because those are the names status
+tools special-case.
+
+State flows one way, host to guest. The guest may only ask for a fresh
+snapshot; nothing it sends can change Mac power state. On a Mac with no
+internal battery, the guest keeps `ADP0` and sees no `BAT0`, so the bar shows
+nothing.
+
+## Protocol
+
+A dedicated virtio-serial port, `dev.spikerssciencepal.battery` (`nr=7`), carries
+newline-delimited JSON. There is one message type — a complete snapshot every
+time, never a delta — so a restarted or late-joining agent is never
+half-informed:
+
+```json
+{"type":"state","present":true,"percentage":57,"state":"discharging",
+ "acConnected":false,"timeToEmptySeconds":8100,"timeToFullSeconds":null,
+ "chargeLimit":95,"chargeNowMicroAh":2832900,"chargeFullMicroAh":4970000,
+ "chargeFullDesignMicroAh":6075000,"voltageMicroV":12537000,"cycleCount":213,
+ "currentMicroA":1500000}
+```
+
+`state` is one of `charging`, `discharging`, `full`, `not-charging`,
+`unknown`. `percentage` is an integer 0-100, and is `null` when `present` is
+`false`. The time fields are integer seconds or `null` when the host has no
+estimate. A Mac with no internal battery sends `"present":false` with
+`"acConnected":true`.
+
+`macos/Sources/SpikersSciencePalVMHelper/NativeBatteryBridge.swift` builds these
+snapshots from `IOPSCopyPowerSourcesInfo` and `IOPSGetPowerSourceDescription`,
+and observes `kIOPSNotifyAnyPowerSource` on its state dispatch queue. This
+includes charging-only changes while percentage and time estimates stay the
+same, such as charging starting after the adapter connects. The IOPS run-loop
+convenience notification covers percentage, time, and source changes only.
+Unchanged snapshots are coalesced; a complete snapshot is also sent every
+30 seconds as a safety net against a missed notification. A guest opening the
+virtio port is not observable on the host's socket chardev, so
+`spikers-native-battery-bridge`, the guest agent, sends one request line on
+start, `{"type":"refresh","chargeLimit":true,"batteryDetails":true,"batteryCurrent":true}`,
+and the host answers with a fresh snapshot. The host ignores any other guest
+input. Updates follow the readings macOS publishes; plugging into AC does not
+mean charging when macOS holds the battery at a limit or pauses charging.
+
+## Sysfs contract
+
+The DKMS module `spikers-science-pal-battery` (`guest/package/spikers-science-pal/battery/`)
+exposes one writable attribute,
+`/sys/devices/platform/spikers-science-pal-battery/state`, mode 0600 root-only. The
+guest agent writes it as one whole snapshot per write:
+
+```text
+present=1 status=discharging capacity=57 ac=0 time_to_empty=8100 time_to_full=-1 charge_limit=95 charge_now=2832900 charge_full=4970000 charge_full_design=6075000 voltage_now=12537000 cycle_count=213 current_now=1500000
+present=0 ac=1
+```
+
+The first form is used whenever `present` is true, and carries `status`
+(the same token set the protocol's `state` field uses, passed through
+unchanged), `capacity` (0-100), `ac`, and both time fields. The second, short
+form is used when the host reports no internal battery: only `present=0` and
+`ac` are written, and every battery-only key is omitted. `-1` in a time field
+means no estimate.
+
+One write is one consistent snapshot and triggers at most one
+`power_supply_changed()` per supply that actually moved — consumers can never
+observe a new percentage next to a stale charging flag. A malformed line, or
+one missing a required key for the state it declares, is rejected whole and
+the module keeps the previous state. `BAT0` is registered on the first
+`present=1` write and unregistered on the next `present=0`, so a desktop Mac
+never creates it and the bar has nothing to render.
+
+## Configured charge limit
+
+The host reads the active `manualChargeLimit` policy from macOS's
+`/Library/Preferences/com.apple.powerd.charging.plist`, without changing it.
+This powerd archive is undocumented; missing, unreadable, or changed formats
+produce no limit. Optimized Battery Charging's temporary holds and limits
+managed independently by third-party utilities are not treated as a configured
+macOS limit. A value of 100 means no reduced limit.
+
+The guest opts into the optional `chargeLimit` JSON field with its refresh
+request. Older guests receive the original seven-key snapshot; newer guests
+also accept that legacy snapshot from an older app. The limit is an integer
+1–99 or `null`. The module accepts `charge_limit=-1` for unknown or absent
+limits and publishes known values as the read-only standard
+`BAT0/charge_control_end_threshold` property. The actual battery percentage
+always remains independent of this limit.
+
+Spiker's Science Pal's existing `spikers-battery-status` command reads this property, and
+the native power panel shows its **Charge limit** row while charging is held.
+This change does not alter the upstream bar layout or make that conditional
+row visible while charging or discharging. On disconnect, the guest clears
+the limit along with the time estimates.
+
+## Time estimates
+
+The module publishes the host's estimates as `time_to_empty_avg` and
+`time_to_full_avg` under `/sys/class/power_supply/BAT0/`. UPower 1.91.4 does
+not read those two properties. It estimates time from the
+mirrored current and charge readings when available, or from charge history
+otherwise; this is a guest estimate, not the Mac's time estimate. Percentage,
+charge state and AC presence remain independent. Tools that read sysfs directly,
+such as `acpi` and fastfetch, show the host estimates.
+
+## Battery size and cycles
+
+The guest separately opts into physical battery readings with `batteryDetails`.
+The host reads `AppleSmartBattery` through IOKit and sends charge in µAh,
+voltage in µV, and the cycle count. Recent Apple Silicon macOS versions keep
+the physical capacities under `BatteryData` (`RemainingCapacity`,
+`FullChargeCapacity`, `DesignCapacity`); older versions expose
+`AppleRawCurrentCapacity`, `AppleRawMaxCapacity`, and `DesignCapacity` at the
+top level. The normalized `CurrentCapacity` and `MaxCapacity` values are
+percentages and are never used as physical capacities.
+
+Module 1.2.0 publishes these as the standard read-only `charge_now`,
+`charge_full`, `charge_full_design`, `voltage_now`, and `cycle_count` properties.
+UPower converts charge to energy using the reported voltage, supplying
+`energy-full` to Spiker's Science Pal's **Size** row; **Cycles** reads sysfs directly.
+Because the Mac does not supply a design voltage here, the watt-hour value is
+an estimate using present voltage and can vary as voltage changes. The mAh
+readings remain the host's physical capacities; the charge limit and current
+percentage do not scale them.
+
+Each field is an integer or `null`; unavailable physical readings are not
+invented. Missing fields from an older host are accepted and cleared, and a
+disconnect clears all five readings with `-1` in the module state. New hosts
+send extra fields only after opt-in, so original and charge-limit-only guest
+agents keep their existing wire schemas.
+
+## Live charging and discharge power
+
+Module 1.3.0 also publishes `current_now`. The guest requests `currentMicroA`
+with the separate `batteryCurrent` opt-in, so older agents that reject extra
+keys still receive their original schema. The host converts the Mac's signed
+`Amperage` reading from mA to a non-negative µA magnitude; charging direction
+comes from the IOPS state. `InstantAmperage` is a fallback when the averaged
+reading is unavailable. A valid zero remains zero; unavailable readings are
+`null` on the wire and `-1` in the module state. Older host snapshots and bridge
+disconnects clear the reading.
+
+The panel's `spikers-battery-status` command uses `current_now` with
+`voltage_now` to calculate live power, refreshing every five seconds while open. This reports power entering or leaving the battery, not the charger's
+rated wattage or the Mac's total power consumption. It updates when macOS
+publishes a changed reading, including when percentage and charging state have
+not changed. UPower also consumes these readings, but deliberately suppresses
+its own power estimate for ten seconds after an AC transition, then restores it
+on its next refresh. The panel's sysfs power reading avoids that delay.
+
+The earlier pinned guest patched Spiker's Science Pal's battery model so it trusted the
+reported charging state instead of inferring a charge-limit hold from zero
+watts or a long time estimate. The current guest runs Spiker's Science Pal's own shell
+unpatched, so that patch is not carried over; whether the stock model shows
+**Holding** in those cases has not been checked yet.
+
+## Verification
+
+`make test` covers notification delivery without a main run loop, changes to
+charging state and current at a fixed percentage, optional-field negotiation,
+signed current conversion, guest stream processing, and the module parser.
+
+The opt-in smoke test that booted the factory directly to check the module,
+udev and UPower has not been ported to the UEFI factory yet. In a running VM
+the guest showed the Mac's battery percentage. Verify charging changes by
+plugging and unplugging the Mac while the bar and power panel are visible.
+
+## Power profile
+
+Linux power profiles cannot control the Mac's CPU or energy policy through
+QEMU/HVF; change energy modes in macOS System Settings. The earlier pinned
+guest replaced Spiker's Science Pal's profile controls with a single **Managed by macOS**
+entry. That presentation is not carried over to the current guest, which shows
+Spiker's Science Pal's stock power-profile controls.
+
+## Critical battery policy
+
+`/etc/UPower/UPower.conf.d/90-spikers-science-pal.conf` sets two keys:
+
+```ini
+[UPower]
+AllowRiskyCriticalPowerAction=true
+CriticalPowerAction=Ignore
+```
+
+Both are required. Setting only `CriticalPowerAction=Ignore` is not enough:
+UPower 1.91.4 classifies `Ignore` itself as a risky action, and
+without `AllowRiskyCriticalPowerAction=true` it silently refuses to honor the
+setting and falls back through HybridSleep, then Hibernate, then PowerOff —
+the guest would suspend or shut itself down on a low reading with no warning
+that the configured policy had been overridden. With both keys set, the VM
+never automatically suspends or powers off because of a critical battery.
+The Mac's own power handling is the authority.
+
+Spiker's Science Pal's battery service checks every 30 seconds and on AC/battery transitions.
+While unplugged and discharging, it sends **Time to recharge!** at 10% or below
+with critical notification urgency, bypassing Do Not Disturb. It warns once
+per low-battery episode and rearms when charging resumes or the level rises
+above 10%. Charging held at a limit does not trigger it. There is no separate
+second warning at 5%; critical urgency describes the 10% notification.
+The `battery-low` hook runs with the percentage. The bundled warning-sound hook
+is a `.sample` file and is disabled until the user enables it.
+
+## Packaging
+
+The `spikers-science-pal` package ships the module source in
+`/usr/src/spikers-science-pal-battery-1.3.0/`, the bridge
+(`/usr/bin/spikers-native-battery-bridge`) and its unit, the udev and
+module-load rules, and the UPower drop-in. The package depends on `dkms` and
+`linux-omarchy-headers`, so pacman's DKMS hook builds the module when the
+package is installed and again whenever `spikers update` brings a new kernel.
+
+## Failure modes
+
+All are non-fatal to the VM, matching the camera bridge's posture:
+
+| Condition | Behavior |
+| --- | --- |
+| Mac has no internal battery | `present:false`; guest keeps `ADP0` only; bar shows nothing |
+| Host bridge dies | Agent writes `present=0 ac=1`, so the guest shows no battery until the next snapshot; exits; systemd restarts it; launcher restarts the bridge |
+| Module absent (DKMS build failed or pending a reboot after a kernel update) | The unit's `ConditionPathExists` on the sysfs attribute fails; the agent does not start |
+| Malformed JSON line or state line | Rejected; previous state retained |
+| Host sleep and wake | Fresh snapshot on the next notification or the 30-second tick |
+| Critically low Mac battery | Spiker's Science Pal warns; the VM does not suspend or power off |

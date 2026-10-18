@@ -1,0 +1,1379 @@
+import AppKit
+import ApplicationServices
+import Darwin
+import Foundation
+
+@MainActor
+final class HostPowerNotificationObserver {
+    private let center: NotificationCenter
+    private var tokens: [NSObjectProtocol] = []
+
+    init(
+        center: NotificationCenter = NSWorkspace.shared.notificationCenter,
+        onWillSleep: @escaping @MainActor () -> Void,
+        onDidWake: @escaping @MainActor () -> Void
+    ) {
+        self.center = center
+        tokens = [
+            center.addObserver(
+                forName: NSWorkspace.willSleepNotification,
+                object: nil,
+                queue: .main
+            ) { _ in
+                MainActor.assumeIsolated {
+                    onWillSleep()
+                }
+            },
+            center.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil,
+                queue: .main
+            ) { _ in
+                MainActor.assumeIsolated {
+                    onDidWake()
+                }
+            },
+        ]
+    }
+
+    func stop() {
+        for token in tokens {
+            center.removeObserver(token)
+        }
+        tokens = []
+    }
+}
+
+@MainActor
+final class VMApplicationController: NSObject, NSApplicationDelegate {
+    private let launcherURL: URL
+    private let initialArguments: [String]
+    private let baseEnvironment: [String: String]
+    private let supervisor: QEMUGPUProcessSupervisor
+    private let preferenceStore: AudioRoutingPreferenceStore
+    private let sharedFolderStore: SharedFolderPreferenceStore
+    private let usbDeviceStore: USBDevicePreferenceStore
+    private let portForwardingStore: PortForwardingPreferenceStore
+    private let networkStore: VMNetworkPreferenceStore
+    private let fullscreenPreferenceStore: FullscreenPreferenceStore
+    private let startupPreferenceStore: StartupPreferenceStore
+    private let resourcePreferenceStore: VMResourcePreferenceStore
+    private let resourceLimits: VMResourceLimits
+    private let storageLocationStore: StorageLocationPreferenceStore
+    private let volumeProbe: VolumeProbing
+    private let volumeRootDetector: VolumeRootDetecting
+    private let deviceProvider: HostAudioDeviceProviding
+    private let bundledMetrics: BundledGuestMetrics?
+    private let factoryManifest: FactoryDownloadManifest?
+    private let bundlesFactoryImage: Bool
+    private var factoryDownloader: FactoryImageDownloader?
+    /// Where this launch's downloaded image lives, cleaned once the VM runs.
+    private var launchedFactoryDirectories: [URL] = []
+    private var startMenuWindow: StartMenuWindow?
+    private var settingsBridge: NativeSettingsBridge?
+    private var controlSocketPath: String?
+    private let disposableWorkspace = DisposableVMWorkspace()
+    private var isDisposable: Bool { initialArguments.first == QEMUGPUStorageOption.ephemeral.rawValue }
+    private var settingsReturnApplication: NSRunningApplication?
+    private let appReleaseChecker: AppReleaseChecker
+    private var appReleaseWindow: AppReleaseWindow?
+    private var appReleasePromptScheduled = false
+    private var volumeObserver: NSObjectProtocol?
+    private var hostPowerObserver: HostPowerNotificationObserver?
+    private let hostSleepCoordinator = VMHostSleepCoordinator()
+
+    /// The workspace the running VM is writing to, so an unmount of its volume
+    /// can be recognized as the disk disappearing under QEMU.
+    private var activeStateRoot: String?
+
+    private var lifecycle = VMRunLifecycle()
+    private let activationController = ApplicationActivationController()
+    private var childRunning = false
+    private var applicationTerminationPending = false
+    private var virtualMachineReachedStart = false
+    private var pendingHostSleepControlFailure: String?
+
+    /// True while a modal alert this controller opened itself (rather than
+    /// AppKit) is on screen awaiting a click. `finish()`'s watchdog checks
+    /// this so it never yanks a dialog out from under the user; it reschedules
+    /// instead of firing while this is true.
+    private var isPresentingBlockingAlert = false
+
+    private(set) var exitStatus: Int32 = 0
+
+    init(
+        launcherURL: URL,
+        initialArguments: [String],
+        baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
+        supervisor: QEMUGPUProcessSupervisor = QEMUGPUProcessSupervisor(),
+        preferenceStore: AudioRoutingPreferenceStore = AudioRoutingPreferenceStore(),
+        sharedFolderStore: SharedFolderPreferenceStore = SharedFolderPreferenceStore(),
+        usbDeviceStore: USBDevicePreferenceStore = USBDevicePreferenceStore(),
+        portForwardingStore: PortForwardingPreferenceStore = PortForwardingPreferenceStore(),
+        networkStore: VMNetworkPreferenceStore = VMNetworkPreferenceStore(),
+        fullscreenPreferenceStore: FullscreenPreferenceStore = FullscreenPreferenceStore(),
+        startupPreferenceStore: StartupPreferenceStore = StartupPreferenceStore(),
+        resourcePreferenceStore: VMResourcePreferenceStore = VMResourcePreferenceStore(),
+        resourceLimits: VMResourceLimits = .current,
+        storageLocationStore: StorageLocationPreferenceStore = StorageLocationPreferenceStore(),
+        volumeProbe: VolumeProbing = URLVolumeProbe(),
+        volumeRootDetector: VolumeRootDetecting = FileManagerVolumeRootDetector(),
+        deviceProvider: HostAudioDeviceProviding = CoreAudioHostAudioDeviceProvider(),
+        bundledMetrics: BundledGuestMetrics? = QEMUGPUStorageSpaceEstimate.bundledMetrics(),
+        factoryManifest: FactoryDownloadManifest? = FactoryDownloadManifest.bundled(),
+        bundlesFactoryImage: Bool = QEMUGPUStorageSpaceEstimate.bundlesFactoryImage(),
+        appReleaseChecker: AppReleaseChecker? = nil
+    ) {
+        self.launcherURL = launcherURL
+        self.initialArguments = initialArguments
+        self.baseEnvironment = baseEnvironment
+        self.supervisor = supervisor
+        self.preferenceStore = preferenceStore
+        self.sharedFolderStore = sharedFolderStore
+        self.usbDeviceStore = usbDeviceStore
+        self.portForwardingStore = portForwardingStore
+        self.networkStore = networkStore
+        self.fullscreenPreferenceStore = fullscreenPreferenceStore
+        self.startupPreferenceStore = startupPreferenceStore
+        self.resourcePreferenceStore = resourcePreferenceStore
+        self.resourceLimits = resourceLimits
+        self.storageLocationStore = storageLocationStore
+        self.volumeProbe = volumeProbe
+        self.volumeRootDetector = volumeRootDetector
+        self.deviceProvider = deviceProvider
+        self.bundledMetrics = bundledMetrics
+        self.factoryManifest = factoryManifest
+        self.bundlesFactoryImage = bundlesFactoryImage
+        self.appReleaseChecker = appReleaseChecker ?? AppReleaseChecker()
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        appReleaseChecker.onChange = { [weak self] in
+            self?.startMenuWindow?.refreshAppReleaseStatus()
+            self?.appReleaseWindow?.refresh()
+            self?.scheduleAppReleasePrompt()
+        }
+        observeVolumeUnmounts()
+        observeHostPowerEvents()
+        let startupRoot = startupPreferenceRoot()
+        let startAutomatically = StartupPolicy.shouldStartAutomatically(
+            isEnabled: startupPreferenceStore.load(storageRoot: startupRoot),
+            hasExistingVM: startupRoot.map {
+                QEMUGPUStorageSpaceEstimate.hasRecordedPersistentDisk(stateRoot: $0.path)
+            } ?? false,
+            optionKeyHeld: NSEvent.modifierFlags.contains(.option),
+            initialArguments: initialArguments
+        )
+        prepareStartMenu(startAutomatically: startAutomatically)
+        appReleaseChecker.checkAutomaticallyIfDue()
+        scheduleAppReleasePrompt()
+    }
+
+    private func scheduleAppReleasePrompt() {
+        guard !appReleasePromptScheduled else { return }
+        appReleasePromptScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.appReleasePromptScheduled = false
+            self.presentAppReleasePromptIfReady()
+        }
+    }
+
+    private func presentAppReleasePromptIfReady() {
+        let ready = NSApp.isActive && !isPresentingBlockingAlert
+            && NSApp.modalWindow == nil && !lifecycle.isStopping && !lifecycle.isTerminating
+            && appReleaseWindow?.isVisible != true
+            && startMenuWindow?.canPresentAppReleasePrompt == true
+        guard let release = appReleaseChecker.automaticPromptRelease(presentationReady: ready),
+              let window = startMenuWindow?.window else { return }
+        // Remember presentation before attaching the sheet to avoid duplicate prompts.
+        appReleaseChecker.acknowledgeRelease(release)
+        AppReleasePrompt.alert(for: release).beginSheetModal(for: window) { response in
+            if response == .alertFirstButtonReturn {
+                NSWorkspace.shared.open(release.url)
+            }
+        }
+    }
+
+    @objc func checkForAppUpdates(_ sender: Any?) {
+        activationController.reconcile()
+        if appReleaseWindow == nil {
+            appReleaseWindow = AppReleaseWindow(checker: appReleaseChecker)
+        }
+        appReleaseWindow?.show()
+    }
+
+    @objc func showSettings(_ sender: Any?) {
+        if childRunning {
+            _ = showRunningSettings()
+        } else if !lifecycle.isStopping && !isPresentingBlockingAlert {
+            startMenuWindow?.bringToFront()
+        }
+    }
+
+    @objc func openHelpLink(_ sender: NSMenuItem) {
+        guard let link = ApplicationHelpLink(rawValue: sender.tag) else { return }
+        NSWorkspace.shared.open(link.url)
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        activationController.reconcile()
+        startMenuWindow?.applicationDidBecomeActive()
+        scheduleAppReleasePrompt()
+    }
+
+    private func prepareStartMenu(startAutomatically: Bool, honorInitialReset: Bool = true) {
+        activationController.setDesiredPolicy(ApplicationPresentation.prelaunchActivationPolicy)
+        let resetOptions = [
+            QEMUGPUStorageOption.resetStorage.rawValue,
+            QEMUGPUStorageOption.resetStorageOnly.rawValue,
+        ]
+        let initialResetRequested = initialArguments.first.map(resetOptions.contains) ?? false
+        let canResetStorage = initialArguments.first != QEMUGPUStorageOption.ephemeral.rawValue
+        let startMenu = StartMenuWindow(
+            accessibilityStatus: { AXIsProcessTrusted() },
+            microphoneStatus: { MicrophonePreflight.authorizationState() },
+            cameraStatus: { CameraPreflight.authorizationState() },
+            requestAccessibility: { [weak self] in
+                self?.requestOptionalAccessibilityPermission()
+            },
+            requestMicrophone: { completion in
+                MicrophonePreflight.requestAccess(completion: completion)
+            },
+            requestCamera: { completion in
+                CameraPreflight.requestAccess(completion: completion)
+            },
+            canResetStorage: canResetStorage,
+            storageLocation: { [weak self] in
+                guard canResetStorage, let self else { return nil }
+                guard let root = QEMUGPUStorageSpaceEstimate.storageRootURL(
+                    environment: self.baseEnvironment,
+                    preference: self.storageLocationStore.load()
+                ) else { return nil }
+                return StorageLocationPolicy.displayPath(root.path, homeDirectory: Self.homeDirectory)
+            },
+            storageLocationURL: { [weak self] in
+                guard canResetStorage, let self else { return nil }
+                return QEMUGPUStorageSpaceEstimate.storageRootURL(
+                    environment: self.baseEnvironment,
+                    preference: self.storageLocationStore.load()
+                )
+            },
+            storageSpaceEstimate: { [weak self] in
+                guard let self else { return nil }
+                return QEMUGPUStorageSpaceEstimate.formattedReclaimableSpace(
+                    environment: self.baseEnvironment,
+                    preference: self.storageLocationStore.load()
+                )
+            },
+            storageLocationStatus: { [weak self] in
+                self?.storageLocationMenuState() ?? .defaultLocation
+            },
+            validateStorageLocation: { [weak self] path in
+                self?.validateStorageLocation(path)
+            },
+            chooseStorageLocation: { [weak self] path in
+                self?.chooseStorageLocation(path)
+            },
+            useDefaultStorageLocation: { [weak self] in
+                self?.useDefaultStorageLocation()
+            },
+            resetStorage: { [weak self] in
+                self?.resetVirtualMachine()
+            },
+            deleteStorageLocation: { [weak self] source, identity, completion in
+                self?.deleteStorageLocation(source, identity: identity, completion: completion)
+            },
+            moveStorageLocation: { [weak self] source, path, progress, completion in
+                self?.moveStorageLocation(from: source, to: path, progress: progress, completion: completion)
+            },
+            sharedFolderStatus: { [weak self] in
+                self?.sharedFolderMenuState() ?? SharedFolderMenuState.disabled
+            },
+            chooseSharedFolder: { [weak self] path in
+                self?.chooseSharedFolder(path)
+            },
+            setSharedFolderEnabled: { [weak self] enabled in
+                self?.setSharedFolderEnabled(enabled)
+            },
+            usbDeviceStatus: { [weak self] in
+                self?.usbDeviceMenuState() ?? .disabled
+            },
+            connectedUSBDevices: { HostUSBDevices.connected() },
+            saveUSBDevice: { [weak self] preference in
+                self?.usbDeviceStore.save(preference)
+            },
+            portForwardingStatus: { [weak self] in
+                self?.portForwardingStore.load() ?? []
+            },
+            savePortForwarding: { [weak self] mappings in
+                self?.savePortForwarding(mappings)
+            },
+            resources: { [weak self, resourceLimits] in
+                guard let self else { return resourceLimits.defaults }
+                return self.resolvedResources()
+            },
+            resourceLimits: resourceLimits,
+            minimumDiskGiB: { [weak self] in self?.minimumDiskGiB() ?? 1 },
+            saveResources: { [weak self] resources in
+                self?.resourcePreferenceStore.save(resources)
+            },
+            networkPreferences: { [weak self] in self?.resolvedNetworkPreferences() ?? VMNetworkPreferences() },
+            saveNetworkPreferences: { [weak self] preferences in
+                do { try self?.networkStore.save(preferences); return nil }
+                catch { return error.localizedDescription }
+            },
+            networkIdentity: VMNetworkIdentityAccess.forLaunch(arguments: initialArguments,
+                operation: { [weak self] arguments in
+                    guard let self else { throw HelperError.io("The VM controller is unavailable.") }
+                    return try self.networkIdentityOperation(arguments)
+                }),
+            immersiveMode: { [weak self] in
+                self?.fullscreenPreferenceStore.load().isImmersive ?? true
+            },
+            setImmersiveMode: { [weak self] isImmersive in
+                self?.fullscreenPreferenceStore.save(
+                    FullscreenPreferences(isImmersive: isImmersive)
+                )
+            },
+            startAutomatically: { [weak self] in
+                guard let self else { return false }
+                return self.startupPreferenceStore.load(storageRoot: self.startupPreferenceRoot())
+            },
+            setStartAutomatically: { [weak self] enabled in
+                guard let self else { return "The VM controller is unavailable." }
+                do {
+                    if self.isDisposable { _ = try self.disposableWorkspace.prepare() }
+                    guard let root = self.startupPreferenceRoot() else {
+                        return "The VM data folder is unavailable."
+                    }
+                    try self.startupPreferenceStore.save(enabled, storageRoot: root)
+                    return nil
+                } catch { return error.localizedDescription }
+            },
+            appVersionLabel: appReleaseChecker.installed.label,
+            appReleaseActionTitle: { [weak self] in
+                self?.appReleaseChecker.menuTitle ?? "Check for Updates…"
+            },
+            checkForAppUpdates: { [weak self] in self?.checkForAppUpdates(nil) },
+            launch: { [weak self] in
+                self?.startVirtualMachine()
+            }
+        )
+        startMenuWindow = startMenu
+        startMenu.onAppReleasePromptOpportunity = { [weak self] in self?.scheduleAppReleasePrompt() }
+        // Automatic startup uses the same launch path as the button.
+        if startAutomatically {
+            startMenu.launchSpikers()
+        } else {
+            startMenu.show()
+            if honorInitialReset && initialResetRequested {
+                startMenu.promptForReset()
+            }
+        }
+    }
+
+    private func startupPreferenceRoot() -> URL? {
+        if isDisposable { return disposableWorkspace.directory }
+        return QEMUGPUStorageSpaceEstimate.storageRootURL(
+            environment: baseEnvironment, preference: storageLocationStore.load()
+        )
+    }
+
+    private func startVirtualMachine() {
+        cancelHostWakeRetry()
+        virtualMachineReachedStart = false
+        pendingHostSleepControlFailure = nil
+        do {
+            if isDisposable { _ = try disposableWorkspace.prepare() }
+            let accessibilityDecision = AccessibilityLaunchDecision.make(
+                for: AXIsProcessTrusted() ? .authorized : .unavailable
+            )
+            if let warning = accessibilityDecision.warning {
+                fputs("[input-bridge] \(warning)\n", stderr)
+            }
+            guard accessibilityDecision.allowsLaunch else {
+                throw HelperError.io("accessibility policy unexpectedly prevented launch")
+            }
+            let microphoneDecision = MicrophonePreflight.decision()
+            if let warning = microphoneDecision.warning {
+                fputs("[audio] \(warning)\n", stderr)
+            }
+            guard microphoneDecision.allowsLaunch else {
+                throw HelperError.io("microphone policy unexpectedly prevented audio playback")
+            }
+            // Switching to the default is an acceptable way to start a VM, so
+            // both `.available` and `.switchedToDefault` proceed here.
+            guard isDisposable || resolveStorageLocationAvailability() != .cancelled else {
+                startMenuWindow?.launchDidAbort()
+                return
+            }
+            let cameraDecision = CameraPreflight.decision()
+            if let warning = cameraDecision.warning {
+                fputs("[camera] \(warning)\n", stderr)
+            }
+            guard cameraDecision.allowsLaunch else {
+                throw HelperError.io("camera policy unexpectedly prevented launch")
+            }
+            if try beginFactoryDownloadIfNeeded() { return }
+            try launch(arguments: launchArguments())
+        } catch {
+            failLaunch(error)
+        }
+    }
+
+    private func launchArguments() -> [String] {
+        var arguments = initialArguments
+        let resetOptions = [
+            QEMUGPUStorageOption.resetStorage.rawValue,
+            QEMUGPUStorageOption.resetStorageOnly.rawValue,
+        ]
+        if let first = arguments.first,
+           resetOptions.contains(first) || first == QEMUGPUStorageOption.ephemeral.rawValue {
+            arguments.removeFirst()
+        }
+        return arguments
+    }
+
+    private func resetArguments() -> [String] {
+        var arguments = launchArguments()
+        arguments.insert(QEMUGPUStorageOption.resetStorageOnly.rawValue, at: 0)
+        return arguments
+    }
+
+    private func resetVirtualMachine() {
+        // Unlike launch, a reset that lands on the default workspace after the
+        // chosen drive went missing would erase a VM the user never confirmed.
+        // Switching the setting is allowed; erasing on that same click is not,
+        // so the reset is abandoned and they get an accurate confirmation the
+        // next time they ask for one.
+        guard resolveStorageLocationAvailability(forReset: true) == .available else {
+            startMenuWindow?.resetDidAbort()
+            return
+        }
+        do {
+            let context = childLaunchContext(forReset: true)
+            guard context.storageUnavailableReason == nil else {
+                startMenuWindow?.resetDidFinish(
+                    errorMessage: context.storageUnavailableReason
+                )
+                return
+            }
+            activeStateRoot = context.stateRoot
+            try supervisor.start(
+                executableURL: launcherURL,
+                arguments: resetArguments(),
+                environment: QEMUGPURuntimeEnvironment.sanitizedForReset(context.environment),
+                launchEvent: { [weak self] event in
+                    if case .resetProgress(let phase) = event {
+                        self?.startMenuWindow?.resetDidProgress(to: phase)
+                    }
+                }
+            ) { [weak self] status in
+                self?.resetDidExit(status: status)
+            }
+            childRunning = true
+        } catch {
+            startMenuWindow?.resetDidFinish(errorMessage: error.localizedDescription)
+        }
+    }
+
+    private func resetDidExit(status: Int32) {
+        guard childRunning else { return }
+        childRunning = false
+        cancelHostWakeRetry()
+        hostSleepCoordinator.disconnect()
+        let wasStopping = lifecycle.isStopping
+        lifecycle.childExited()
+        if applicationTerminationPending {
+            NSApp.reply(toApplicationShouldTerminate: true)
+        } else if wasStopping {
+            finish(status: status)
+        } else if status == 0 {
+            startMenuWindow?.resetDidFinish(errorMessage: nil)
+        } else {
+            startMenuWindow?.resetDidFinish(
+                errorMessage: "The VM disk could not be reset. Try again, or reinstall the latest Spiker's Science Pal app."
+            )
+        }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if workspaceTransferProcess != nil { return .terminateCancel }
+        // What was downloaded stays for the next launch to resume.
+        factoryDownloader?.cancel()
+        guard childRunning else { return .terminateNow }
+        guard !applicationTerminationPending else { return .terminateLater }
+
+        cancelHostWakeRetry()
+        applicationTerminationPending = true
+        lifecycle.requestQuit()
+        supervisor.forward(signal: SIGTERM)
+        return .terminateLater
+    }
+
+    func handleTerminationSignal(_ signal: Int32) {
+        if workspaceTransferProcess?.isRunning == true { workspaceTransferProcess?.terminate() }
+        guard !applicationTerminationPending else { return }
+        cancelHostWakeRetry()
+        lifecycle.requestTermination(signal: signal)
+        if childRunning {
+            supervisor.forward(signal: signal)
+        } else {
+            finish(status: 128 + signal)
+        }
+    }
+
+    private struct ChildLaunchContext {
+        var environment: [String: String]
+        let stateRoot: String?
+        let portForwardMappings: [PortForwardMapping]
+        /// Set when a chosen data folder could not be validated. Starting the
+        /// launcher anyway would silently retarget the default workspace.
+        let storageUnavailableReason: String?
+    }
+
+    private func networkIdentityOperation(_ arguments: [String]) throws -> String {
+        let context = childLaunchContext()
+        if let error = context.storageUnavailableReason { throw HelperError.io(error) }
+        guard let root = QEMUGPUStorageSpaceEstimate.storageRootURL(
+            environment: context.environment, preference: storageLocationStore.load()),
+              let resources = Bundle.main.resourceURL else {
+            throw HelperError.io("The VM data folder is unavailable.")
+        }
+        return try VMNetworkIdentityAccess.operation(arguments, root: root, resources: resources)
+    }
+
+    private func resolvedNetworkPreferences() -> VMNetworkPreferences {
+        var preferences = networkStore.load()
+        if preferences.mode == .bridged,
+           let selected = VMBridgeInterfaces.available().first(where: { $0.name == preferences.interface }) {
+            preferences.wifiCompatibility = VMNetworkPolicy.requiresWiFiCompatibility(
+                isWiFi: selected.isWiFi, supported: VMNetworkPolicy.supportsWiFiCompatibility)
+        }
+        return preferences
+    }
+
+    private func minimumDiskGiB() -> Int {
+        let root = disposableWorkspace.directory ?? QEMUGPUStorageSpaceEstimate.storageRootURL(
+            environment: baseEnvironment, preference: storageLocationStore.load()
+        )
+        let disk = root?.appendingPathComponent("shell/disk.img")
+        let attributes = disk.flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path) }
+        let bytes = (attributes?[.type] as? FileAttributeType) == .typeRegular
+            ? (attributes?[.size] as? NSNumber)?.int64Value : nil
+        let capacity = bytes ?? bundledMetrics?.workingDiskBytes ?? (16 << 30)
+        return max(1, Int(max(0, capacity - 1) / (1 << 30)) + 1)
+    }
+
+    private func resolvedResources() -> VMResources {
+        var resources = resourceLimits.resolve(resourcePreferenceStore.load())
+        if let disk = resources.diskGiB {
+            resources.diskGiB = max(disk, minimumDiskGiB())
+        }
+        return resources
+    }
+
+    /// The environment every launcher invocation receives.
+    ///
+    /// Reset must compose this exactly as a normal launch does. When the two
+    /// diverged, choosing a custom data folder would leave Reset erasing the
+    /// default workspace while the VM the user meant to erase stayed untouched.
+    ///
+    /// Port-forward availability is deliberately *not* validated here: this
+    /// context is shared with Reset, and a reset that only wipes the VM disk
+    /// should never fail because an unrelated port mapping is unavailable.
+    /// `launch()` validates the composed mappings itself, after calling this.
+    private func childLaunchContext(forReset: Bool = false) -> ChildLaunchContext {
+        let audio = AudioLaunchConfiguration.make(
+            baseEnvironment: QEMUGPURuntimeEnvironment.sanitizedForLaunch(baseEnvironment),
+            preferences: preferenceStore.load(),
+            catalog: deviceProvider.catalog()
+        )
+        let sharing = SharedFolderLaunchConfiguration.make(
+            baseEnvironment: audio.environment,
+            preference: sharedFolderStore.load(),
+            homeDirectory: Self.homeDirectory
+        )
+        let usb = USBPassthroughLaunchConfiguration.make(
+            baseEnvironment: sharing.environment,
+            preference: usbDeviceStore.load(),
+            connected: HostUSBDevices.connected()
+        )
+        let forwarding = PortForwardLaunchConfiguration.make(
+            baseEnvironment: usb.environment,
+            mappings: networkStore.load().mode == .nat ? portForwardingStore.load() : []
+        )
+        let fullscreen = FullscreenLaunchConfiguration.make(
+            baseEnvironment: forwarding.environment,
+            preferences: fullscreenPreferenceStore.load()
+        )
+        let resources = VMResourceLaunchConfiguration.make(
+            baseEnvironment: fullscreen.environment,
+            preferences: resolvedResources(),
+            limits: resourceLimits
+        )
+        let language = LanguageLaunchConfiguration.make(baseEnvironment: resources.environment)
+        var storageEnvironment = language.environment
+        if let directory = disposableWorkspace.directory {
+            storageEnvironment[StorageLocationPolicy.environmentKey] = directory.path
+            // A disposable session clones the main storage folder's factory
+            // copy instead of decompressing its own.
+            if let root = QEMUGPUStorageSpaceEstimate.storageRootURL(
+                environment: baseEnvironment, preference: storageLocationStore.load()) {
+                storageEnvironment[QEMUGPURuntimeEnvironment.factoryCacheKey] =
+                    root.appendingPathComponent("shell-factory", isDirectory: true).path
+            }
+        }
+        let storage = StorageLocationLaunchConfiguration.make(
+            baseEnvironment: storageEnvironment,
+            preference: storageLocationStore.load(),
+            metrics: forReset ? nil : bundledMetrics,
+            probe: volumeProbe,
+            volumeRootDetector: volumeRootDetector
+        )
+        return ChildLaunchContext(
+            environment: VMNetworkPolicy.environment(base: storage.environment, preferences: resolvedNetworkPreferences()),
+            stateRoot: storage.resolvedStateRoot?.path,
+            portForwardMappings: forwarding.mappings,
+            storageUnavailableReason: storage.unavailableReason
+        )
+    }
+
+    /// The factory a new VM disk needs, for this launch's storage folder.
+    private func factoryImagePreparation(_ context: ChildLaunchContext) -> FactoryImagePreparation {
+        guard context.storageUnavailableReason == nil, let stateRoot = context.stateRoot else {
+            return .ready(image: nil)
+        }
+        return FactoryImagePreparation.plan(
+            manifest: factoryManifest,
+            bundlesImage: bundlesFactoryImage,
+            stateRoot: URL(fileURLWithPath: stateRoot, isDirectory: true),
+            sharedFactory: context.environment[QEMUGPURuntimeEnvironment.factoryCacheKey]
+                .map { URL(fileURLWithPath: $0, isDirectory: true) }
+        )
+    }
+
+    /// Downloads the factory image before a launch that creates a VM, then
+    /// launches. Returns false when the launch can go ahead now.
+    private func beginFactoryDownloadIfNeeded() throws -> Bool {
+        guard factoryDownloader == nil, let manifest = factoryManifest else { return false }
+        let context = childLaunchContext()
+        guard case .download(var directory) = factoryImagePreparation(context) else { return false }
+        let stateRoot = URL(fileURLWithPath: context.stateRoot!, isDirectory: true)
+        let localFactory = stateRoot.appendingPathComponent(VMWorkspaceTransfer.factoryCacheName, isDirectory: true)
+        do {
+            // A disposable VM shares the storage folder's copy. A chosen folder
+            // that is missing is never recreated, so the disposable workspace
+            // keeps its own download instead.
+            let mayCreateRoot = directory == localFactory || storageLocationStore.load().isDefault
+                || !(baseEnvironment[StorageLocationPolicy.environmentKey] ?? "").isEmpty
+            try FactoryImageStore.prepareDirectory(directory, mayCreateRoot: mayCreateRoot)
+        } catch where directory != localFactory {
+            directory = localFactory
+            try FactoryImageStore.prepareDirectory(directory, mayCreateRoot: true)
+        }
+        FactoryImageStore.removeObsoleteDownloads(in: directory, identity: manifest.identity)
+        // The launcher then decompresses about half the disk beside it.
+        let reserve = (bundledMetrics?.sourceDiskBytes ?? 0) + StorageSpaceRequirement.headroomBytes
+        let downloader = FactoryImageDownloader(manifest: manifest, directory: directory, reserveBytes: reserve)
+        factoryDownloader = downloader
+        fputs("[download] Preparing the Spiker's Science Pal image in \(directory.path)\n", stderr)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = Result {
+                try downloader.run { progress in
+                    DispatchQueue.main.async { self?.startMenuWindow?.launchDidDownload(progress) }
+                }
+            }
+            DispatchQueue.main.async { self?.factoryDownloadDidFinish(downloader, result: result) }
+        }
+        return true
+    }
+
+    private func factoryDownloadDidFinish(_ downloader: FactoryImageDownloader, result: Result<URL, Error>) {
+        guard factoryDownloader === downloader else { return }
+        factoryDownloader = nil
+        switch result {
+        case .success(let image):
+            startMenuWindow?.launchDidFinishDownload()
+            do { try launch(arguments: launchArguments(), downloadedFactoryImage: image) } catch { failLaunch(error) }
+        case .failure(FactoryDownloadError.cancelled):
+            startMenuWindow?.launchDidAbort()
+        case .failure(let error):
+            failLaunch(error)
+        }
+    }
+
+    private func launch(arguments: [String], downloadedFactoryImage: URL? = nil) throws {
+        var context = childLaunchContext()
+        // The UI gate above normally resolves this first; failing closed here
+        // too keeps a silent fallback impossible for any future caller.
+        if let reason = context.storageUnavailableReason {
+            throw HelperError.io(reason)
+        }
+        if context.environment[VMNetworkPolicy.modeKey] == VMNetworkMode.bridged.rawValue {
+            try NetworkService.prepare()
+            try NetworkService.verifyConnection()
+        }
+        try PortForwardAvailability.validate(context.portForwardMappings)
+        launchedFactoryDirectories = context.stateRoot.map {
+            [URL(fileURLWithPath: $0, isDirectory: true)
+                .appendingPathComponent(VMWorkspaceTransfer.factoryCacheName, isDirectory: true)]
+        } ?? []
+        var factoryImage = downloadedFactoryImage
+        if factoryImage == nil, case .ready(let image?) = factoryImagePreparation(context) {
+            factoryImage = image
+        }
+        if let factoryImage {
+            context.environment[QEMUGPURuntimeEnvironment.factoryImageKey] = factoryImage.path
+            launchedFactoryDirectories.append(factoryImage.deletingLastPathComponent())
+        }
+        activeStateRoot = context.stateRoot
+        try supervisor.start(
+            executableURL: launcherURL,
+            arguments: arguments,
+            environment: context.environment,
+            launchEvent: { [weak self] event in
+                switch event {
+                case .virtualMachineReady(let qmpSocketPath):
+                    self?.virtualMachineDidStart(qmpSocketPath: qmpSocketPath)
+                case .launchProgress(let phase):
+                    self?.startMenuWindow?.launchDidProgress(to: phase)
+                case .resetProgress:
+                    break
+                }
+            }
+        ) { [weak self] status in
+            self?.childDidExit(status: status)
+        }
+        childRunning = true
+    }
+
+    private func virtualMachineDidStart(qmpSocketPath: String?) {
+        guard let qmpSocketPath else {
+            failHostSleepControlSetup(
+                detail: "the launcher did not provide a valid control socket"
+            )
+            return
+        }
+        do {
+            try hostSleepCoordinator.connect(to: qmpSocketPath)
+        } catch {
+            failHostSleepControlSetup(detail: error.localizedDescription)
+            return
+        }
+        if let root = startupPreferenceRoot() {
+            do { try startupPreferenceStore.persistPendingChoice(storageRoot: root) }
+            catch { fputs("[startup] Could not retain Skip launcher: \(error.localizedDescription)\n", stderr) }
+        }
+        virtualMachineReachedStart = true
+        // The launcher has decompressed the factory by now, so a downloaded
+        // image is no longer needed.
+        if let identity = factoryManifest?.identity {
+            let directories = launchedFactoryDirectories
+            DispatchQueue.global(qos: .utility).async {
+                for directory in Set(directories) {
+                    FactoryImageStore.removeObsoleteDownloads(in: directory, identity: identity)
+                }
+            }
+        }
+        startMenuWindow?.dismiss()
+        activationController.setDesiredPolicy(ApplicationPresentation.runningActivationPolicy)
+        controlSocketPath = qmpSocketPath
+        startMenuWindow?.virtualMachineDidStart(
+            requestSettingsAction: { [weak self] action in self?.shutDownForSettings(action) },
+            closeSettings: { [weak self] in self?.closeRunningSettings() }
+        )
+        let settingsSocket = URL(fileURLWithPath: qmpSocketPath)
+            .deletingLastPathComponent().appendingPathComponent("settings.sock").path
+        do {
+            settingsBridge = try NativeSettingsBridge(socketPath: settingsSocket) { [weak self] in
+                self?.showRunningSettings() ?? false
+            }
+        } catch {
+            // Settings access is optional; losing it must not stop a running VM.
+            fputs("[settings] \(error.localizedDescription)\n", stderr)
+        }
+    }
+
+    private func showRunningSettings() -> Bool {
+        guard childRunning, virtualMachineReachedStart,
+              (!lifecycle.isStopping || lifecycle.settingsAction != nil),
+              !isPresentingBlockingAlert, let startMenuWindow else { return false }
+        activationController.reconcile()
+        if startMenuWindow.window.isVisible || startMenuWindow.window.isMiniaturized {
+            startMenuWindow.bringToFront()
+            return true
+        }
+        settingsReturnApplication = NSWorkspace.shared.frontmostApplication
+        startMenuWindow.show()
+        return true
+    }
+
+    private func closeRunningSettings() {
+        startMenuWindow?.dismiss()
+        settingsReturnApplication?.activate(options: [])
+        settingsReturnApplication = nil
+    }
+
+    private func shutDownForSettings(_ action: VMRunLifecycle.SettingsAction) {
+        guard childRunning, virtualMachineReachedStart, !lifecycle.isStopping,
+              let controlSocketPath else { return }
+        guard !hostSleepCoordinator.pausedForHostSleep else {
+            startMenuWindow?.shutdownDidFail("Wait for Spiker's Science Pal to resume after Mac sleep, then try again.")
+            return
+        }
+        lifecycle.requestSettingsAction(action)
+        startMenuWindow?.shutdownDidBegin()
+        do {
+            let connection = try QMPConnection(socketPath: controlSocketPath, identifierPrefix: "settings")
+            _ = try connection.execute("system_powerdown")
+            // ACPI asks Linux to shut down cleanly. Only the launcher's exit
+            // callback may start the replacement QEMU process; no forced timer.
+        } catch {
+            lifecycle.cancelSettingsAction()
+            startMenuWindow?.shutdownDidFail(error.localizedDescription)
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if !childRunning { disposableWorkspace.remove() }
+    }
+
+    private func failHostSleepControlSetup(detail: String) {
+        fputs(
+            "spikers-vm-helper: host sleep control is unavailable: \(detail)\n",
+            stderr
+        )
+        pendingHostSleepControlFailure = "The virtual machine started, but Spiker's Science Pal could not enable safe Mac sleep. Please close and reopen the app. (\(detail))"
+        lifecycle.requestQuit()
+        supervisor.forward(signal: SIGTERM)
+    }
+
+    private static var homeDirectory: String {
+        FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+    }
+
+    private func sharedFolderMenuState() -> SharedFolderMenuState {
+        SharedFolderMenuState.make(
+            preference: sharedFolderStore.load(),
+            homeDirectory: Self.homeDirectory
+        )
+    }
+
+    /// Returns an error message when the folder is rejected; otherwise saves
+    /// it as the enabled share.
+    private func chooseSharedFolder(_ path: String) -> String? {
+        do {
+            let canonical = try SharedFolderPolicy.validate(path, homeDirectory: Self.homeDirectory)
+            sharedFolderStore.save(SharedFolderPreference(path: canonical, isEnabled: true))
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    private func usbDeviceMenuState() -> USBDeviceMenuState {
+        USBDeviceMenuState.make(
+            preference: usbDeviceStore.load(),
+            connected: HostUSBDevices.connected(),
+            environment: baseEnvironment
+        )
+    }
+
+    private func setSharedFolderEnabled(_ enabled: Bool) {
+        var preference = sharedFolderStore.load()
+        guard preference.path != nil else { return }
+        preference.isEnabled = enabled
+        sharedFolderStore.save(preference)
+    }
+
+    private func savePortForwarding(_ mappings: [PortForwardMapping]) -> String? {
+        do {
+            try portForwardingStore.save(mappings)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    private func storageLocationMenuState() -> StorageLocationMenuState {
+        StorageLocationMenuState.make(
+            preference: storageLocationStore.load(),
+            metrics: bundledMetrics,
+            homeDirectory: Self.homeDirectory,
+            environmentOverride: storageEnvironmentOverride,
+            probe: volumeProbe,
+            volumeRootDetector: volumeRootDetector
+        )
+    }
+
+    /// Returns an error message when the folder is rejected, changing nothing.
+    private func validateStorageLocation(_ path: String) -> String? {
+        do {
+            _ = try StorageLocationPolicy.validate(
+                path,
+                metrics: bundledMetrics,
+                probe: volumeProbe,
+                volumeRootDetector: volumeRootDetector
+            )
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Returns an error message when the folder is rejected; otherwise stores
+    /// it. Selecting a location never copies or replaces a VM.
+    private func chooseStorageLocation(_ path: String) -> String? {
+        do {
+            let resolution = try StorageLocationPolicy.validate(
+                path,
+                metrics: bundledMetrics,
+                probe: volumeProbe,
+                volumeRootDetector: volumeRootDetector
+            )
+            storageLocationStore.save(
+                StorageLocationPreference(containerPath: resolution.containerPath)
+            )
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    private var workspaceTransferProcess: Process?
+
+    private func moveStorageLocation(from source: String, to path: String,
+        progress: @escaping (VMTransferProgress) -> Void, completion: @escaping (String?) -> Void) {
+        guard !childRunning, storageEnvironmentOverride == nil,
+              let root = startupPreferenceRoot(), root.path == source,
+              let executable = Bundle.main.executableURL else {
+            completion("Shut down Spiker's Science Pal before relocating its VM. Environment overrides must be removed first.")
+            return
+        }
+        // A separate process owns POSIX locks, so unrelated UI file reads
+        // cannot release them. Preferences change only after verified success.
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = ["--copy-vm", root.path, path]
+        let errors = Pipe()
+        process.standardError = errors
+        process.standardOutput = FileHandle.nullDevice
+        do { try process.run() }
+        catch { completion(error.localizedDescription); return }
+        workspaceTransferProcess = process
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let errorMessage: String
+            do {
+                errorMessage = try VMTransferOutput.read(from: errors.fileHandleForReading) { update in
+                    DispatchQueue.main.async { progress(update) }
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                if process.isRunning { process.terminate() }
+            }
+            process.waitUntilExit()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.workspaceTransferProcess = nil
+                guard process.terminationStatus == 0 else {
+                    completion(errorMessage.isEmpty
+                        ? "VM relocation failed. The original VM and selected location were retained."
+                        : errorMessage)
+                    return
+                }
+                completion(self.chooseStorageLocation(path))
+            }
+        }
+    }
+
+    private func deleteStorageLocation(_ source: String, identity: String, completion: @escaping (String?) -> Void) {
+        guard !childRunning, workspaceTransferProcess == nil, storageEnvironmentOverride == nil,
+              startupPreferenceRoot()?.path == source, let executable = Bundle.main.executableURL else {
+            completion("Shut down Spiker's Science Pal before deleting its VM. The selected VM must match the confirmed folder.")
+            return
+        }
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = ["--trash-vm", source, identity]
+        let errors = Pipe()
+        process.standardError = errors
+        process.standardOutput = FileHandle.nullDevice
+        do { try process.run() }
+        catch { completion(error.localizedDescription); return }
+        workspaceTransferProcess = process
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let message: String
+            do { message = try VMTransferOutput.read(from: errors.fileHandleForReading) { _ in } }
+            catch { message = error.localizedDescription; if process.isRunning { process.terminate() } }
+            process.waitUntilExit()
+            DispatchQueue.main.async { [weak self] in
+                self?.workspaceTransferProcess = nil
+                completion(process.terminationStatus == 0 ? nil :
+                    (message.isEmpty ? "Could not move this VM to Trash. The selected folder was retained." : message))
+            }
+        }
+    }
+
+    private func useDefaultStorageLocation() {
+        storageLocationStore.save(.default)
+    }
+
+    /// What the user decided once their chosen drive turned out to be missing.
+    ///
+    /// Launch and reset must react differently, which is why this reports the
+    /// choice instead of a bare yes/no. Switching to the default is a fine way
+    /// to *start* a VM, but it must never be a way to *erase* one: the user
+    /// confirmed erasing the workspace on their own drive, and the default
+    /// workspace is a different VM they were never asked about.
+    private enum StorageAvailability {
+        case available
+        case switchedToDefault
+        case cancelled
+    }
+
+    /// Refuses to act on the default workspace behind the user's back when
+    /// their chosen drive is missing. Silently falling back would create — or
+    /// destroy — a second VM they never asked about, which is exactly the
+    /// multi-workspace confusion the storage library works to avoid.
+    /// The state root forced by the environment, if any.
+    ///
+    /// `StorageLocationLaunchConfiguration` lets this beat the stored
+    /// preference, so anything that reports or gates on "the location" has to
+    /// read it too. Otherwise the reset sheet names the folder the user picked
+    /// while the launcher erases the one the environment chose.
+    private var storageEnvironmentOverride: String? {
+        let configured = baseEnvironment[StorageLocationPolicy.environmentKey]
+        return (configured?.isEmpty == false) ? configured : nil
+    }
+
+    private func resolveStorageLocationAvailability(forReset: Bool = false) -> StorageAvailability {
+        // An override wins over the preference on the way to the launcher, so
+        // the preference's reachability says nothing about this run. The
+        // launcher validates the override itself and fails loudly.
+        if storageEnvironmentOverride != nil { return .available }
+        let preference = storageLocationStore.load()
+        guard let container = preference.containerPath else { return .available }
+        do {
+            _ = try StorageLocationPolicy.validate(
+                container,
+                metrics: forReset ? nil : bundledMetrics,
+                probe: volumeProbe,
+                volumeRootDetector: volumeRootDetector
+            )
+            return .available
+        } catch {
+            startMenuWindow?.show()
+            let alert = NSAlert()
+            alert.alertStyle = .critical
+            alert.messageText = "Spiker's Science Pal\u{2019}s data folder is unavailable"
+            alert.informativeText = """
+                \(error.localizedDescription)
+
+                Reconnect the drive and try again, or switch back to the default \
+                folder. Switching does not delete the VM stored on that drive.
+                """
+            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: "Use Default Folder")
+            guard alert.runModal() == .alertSecondButtonReturn else { return .cancelled }
+            storageLocationStore.save(.default)
+            return .switchedToDefault
+        }
+    }
+
+    /// A physical unplug cannot be prevented, but the VM must not keep writing
+    /// into a vanished mount. A graceful eject is already refused by macOS
+    /// while QEMU holds the disk open and FD 9 holds its advisory lock.
+    private func observeVolumeUnmounts() {
+        volumeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didUnmountNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                guard let self,
+                      let volume = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL
+                else { return }
+                self.handleVolumeUnmount(at: volume)
+            }
+        }
+    }
+
+    private func observeHostPowerEvents() {
+        hostPowerObserver = HostPowerNotificationObserver(
+            onWillSleep: { [weak self] in
+                self?.prepareForHostSleep()
+            },
+            onDidWake: { [weak self] in
+                self?.beginResumeAfterHostWake()
+            }
+        )
+    }
+
+    /// `willSleepNotification` observers may delay host sleep while they run.
+    /// Keep this synchronous so QEMU acknowledges `stop` before macOS freezes
+    /// the Hypervisor.framework process.
+    private func prepareForHostSleep() {
+        do {
+            try hostSleepCoordinator.prepareForHostSleep(
+                vmIsRunning: childRunning,
+                isStopping: lifecycle.isTerminating
+            )
+        } catch {
+            fputs(
+                "spikers-vm-helper: could not pause the VM before host sleep: \(error.localizedDescription)\n",
+                stderr
+            )
+        }
+    }
+
+    private func beginResumeAfterHostWake() {
+        cancelHostWakeRetry()
+        resumeAfterHostWake()
+    }
+
+    private func resumeAfterHostWake() {
+        do {
+            try hostSleepCoordinator.resumeAfterHostWake(
+                vmIsRunning: childRunning,
+                isStopping: lifecycle.isTerminating
+            )
+            cancelHostWakeRetry()
+        } catch {
+            fputs(
+                "spikers-vm-helper: could not resume the VM after host wake: \(error.localizedDescription)\n",
+                stderr
+            )
+            guard !(error is VMHostSleepControlError),
+                  hostSleepCoordinator.pausedForHostSleep,
+                  childRunning,
+                  !lifecycle.isTerminating
+            else { return }
+            guard hostSleepCoordinator.scheduleWakeRetry({ [weak self] in
+                self?.resumeAfterHostWake()
+            }) else {
+                presentHostWakeRecovery(error: error)
+                return
+            }
+        }
+    }
+
+    private func cancelHostWakeRetry() {
+        hostSleepCoordinator.cancelWakeRetry()
+    }
+
+    private func presentHostWakeRecovery(error: Error) {
+        guard childRunning,
+              !lifecycle.isTerminating,
+              hostSleepCoordinator.pausedForHostSleep
+        else { return }
+
+        activationController.reconcile()
+        defer { activationController.reconcile() }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Spiker's Science Pal is still paused"
+        alert.informativeText = "Spiker's Science Pal could not reconnect after this Mac woke, so the VM remains paused to protect its state. Try again, or quit the app. (\(error.localizedDescription))"
+        alert.addButton(withTitle: "Try Again")
+        alert.addButton(withTitle: "Quit Spiker's Science Pal")
+
+        isPresentingBlockingAlert = true
+        let response = alert.runModal()
+        isPresentingBlockingAlert = false
+        if response == .alertFirstButtonReturn {
+            beginResumeAfterHostWake()
+        } else {
+            NSApp.terminate(nil)
+        }
+    }
+
+    private func handleVolumeUnmount(at volume: URL) {
+        guard childRunning, !lifecycle.isTerminating, let root = activeStateRoot else { return }
+        let mountPoint = volume.standardizedFileURL.path
+        let prefix = mountPoint.hasSuffix("/") ? mountPoint : mountPoint + "/"
+        guard root == mountPoint || root.hasPrefix(prefix) else { return }
+
+        activationController.reconcile()
+        defer { activationController.reconcile() }
+        fputs(
+            "spikers-vm-helper: the volume holding the Spiker's Science Pal VM was unmounted; stopping\n",
+            stderr
+        )
+        lifecycle.requestQuit()
+        supervisor.forward(signal: SIGTERM)
+
+        // This alert is the first UI this accessory app shows all session, so
+        // it must activate itself or it can be created without ever becoming
+        // key/visible (see the note in finish()).
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "The Spiker's Science Pal disk was disconnected"
+        alert.informativeText = "The drive holding this VM was removed while it was running, so Spiker's Science Pal is shutting down. Reconnect the drive before launching again. Removing the drive while the VM is running can damage it."
+        alert.addButton(withTitle: "OK")
+
+        // The child's own completion callback can arrive and call finish()
+        // while this modal call is still blocking below it on the stack — a
+        // dispatched main-queue block still gets pumped by a nested modal run
+        // loop. Mark the alert as blocking so that reentrant finish() call
+        // waits for this dialog instead of tearing it down mid-read.
+        isPresentingBlockingAlert = true
+        alert.runModal()
+        isPresentingBlockingAlert = false
+    }
+
+    private func requestOptionalAccessibilityPermission() {
+        guard !AXIsProcessTrusted() else { return }
+        // A replacement app can leave a disabled TCC row tied to the old
+        // code signature. Reset only our own decision so the prompt below
+        // registers the executable that is installed now.
+        _ = AccessibilityPermissionRepair.resetStaleEntry()
+        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
+        guard let settingsURL = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        ) else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            NSWorkspace.shared.open(settingsURL)
+        }
+    }
+
+    private func childDidExit(status: Int32) {
+        guard childRunning else { return }
+        childRunning = false
+        settingsBridge?.stop()
+        settingsBridge = nil
+        settingsReturnApplication = nil
+        if virtualMachineReachedStart {
+            startMenuWindow?.dismiss()
+            startMenuWindow = nil
+        }
+        cancelHostWakeRetry()
+        hostSleepCoordinator.disconnect()
+        let recentStandardError = supervisor.recentStandardError
+
+        let wasStopping = lifecycle.isStopping
+        let settingsAction = lifecycle.settingsAction
+        controlSocketPath = nil
+        activeStateRoot = nil
+        let presentation = VMExitPresentationDecision.make(
+            status: status,
+            reachedVirtualMachineStart: virtualMachineReachedStart,
+            wasStopping: wasStopping
+        )
+        let hostSleepControlFailure = pendingHostSleepControlFailure
+        pendingHostSleepControlFailure = nil
+        lifecycle.childExited()
+        if applicationTerminationPending {
+            NSApp.reply(toApplicationShouldTerminate: true)
+        } else if let hostSleepControlFailure {
+            startMenuWindow?.launchDidFail(errorMessage: hostSleepControlFailure)
+        } else if let settingsAction {
+            virtualMachineReachedStart = false
+            // This transition deliberately bypasses automatic startup and the
+            // original command-line reset request. Reset still needs a new click.
+            prepareStartMenu(startAutomatically: false, honorInitialReset: false)
+            if status != 0 {
+                startMenuWindow?.shutdownDidFail("Spiker's Science Pal stopped unexpectedly while shutting down. Your saved settings are ready for the next launch.")
+            } else if settingsAction == .restart {
+                startMenuWindow?.launchSpikers()
+            }
+        } else {
+            if presentation.showsStartupFailure,
+               let startMenuWindow,
+               let networkFailure = NetworkStartupFailure.message(standardError: recentStandardError) {
+                startMenuWindow.launchDidFail(errorMessage: networkFailure)
+                return
+            }
+            if presentation.showsStartupFailure,
+               let startMenuWindow,
+               let portFailure = PortForwardStartupFailure.message(
+                   standardError: recentStandardError,
+                   mappings: portForwardingStore.load()
+               ) {
+                startMenuWindow.launchDidFail(errorMessage: portFailure)
+                return
+            }
+            if presentation.showsStartupFailure {
+                let message = VMStartupFailure.message(
+                    status: status,
+                    standardError: recentStandardError
+                )
+                if let startMenuWindow {
+                    startMenuWindow.launchDidFail(errorMessage: message)
+                    return
+                }
+                let alert = NSAlert()
+                alert.alertStyle = .critical
+                alert.messageText = "Spiker's Science Pal couldn’t start"
+                alert.informativeText = message
+                alert.addButton(withTitle: "Close")
+                alert.runModal()
+            }
+            finish(status: status)
+        }
+    }
+
+    private func failLaunch(_ error: Error) {
+        fputs("spikers-vm-helper: \(error.localizedDescription)\n", stderr)
+        guard let startMenuWindow else {
+            finish(status: 1)
+            return
+        }
+        startMenuWindow.launchDidFail(errorMessage: error.localizedDescription)
+    }
+
+    private func finish(status: Int32) {
+        // The completion callback that reaches `finish()` can arrive while a
+        // dialog this controller opened is still on screen — a dispatched
+        // main-queue block is still pumped by a nested `runModal()` loop.
+        // `NSApp.stop()` is not scoped to only the outer run loop: called
+        // while a modal session is active, it can end THAT session too,
+        // closing the alert before the user has read it. So the whole
+        // shutdown sequence below waits for the alert to be dismissed on its
+        // own, rather than only guarding the final forced exit.
+        guard !isPresentingBlockingAlert else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.finish(status: status)
+            }
+            return
+        }
+
+        if !childRunning { disposableWorkspace.remove() }
+        exitStatus = status
+
+        // `stop` + a posted wake-up event only reliably pumps the run loop
+        // for an app the window server considers active. This accessory app
+        // never shows its own window once the VM is running — QEMU owns the
+        // visible window as a separate process — so a path that reaches here
+        // without our window ever having been key (an eject while running,
+        // not a signal-driven quit) can leave the posted event unserviced and
+        // the process running with nothing on screen. Activating first covers
+        // that gap; the delayed hard exit is a backstop in case it does not.
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.stop(nil)
+        if let wakeUp = NSEvent.otherEvent(
+            with: .applicationDefined,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            subtype: 0,
+            data1: 0,
+            data2: 0
+        ) {
+            NSApp.postEvent(wakeUp, atStart: false)
+        }
+
+        // Backstop: forces the process to exit if the run loop has not
+        // already returned on its own. If `run()` has already returned by
+        // the time this fires, the process has exited and this never runs.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            fputs("spikers-vm-helper: forcing exit; the run loop did not stop on its own\n", stderr)
+            Darwin.exit(status)
+        }
+    }
+}

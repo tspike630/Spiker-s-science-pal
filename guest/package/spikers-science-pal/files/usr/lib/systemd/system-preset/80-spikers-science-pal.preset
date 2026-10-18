@@ -1,0 +1,10 @@
+enable spikers-science-pal-host-config.service
+enable spikers-science-pal-ssh-access.service
+enable spikers-science-pal-guest-status.service
+enable spikers-science-pal-package-install.service
+enable spikers-native-battery-bridge.service
+enable spikers-native-mac-share.service
+enable spikers-science-pal-locale.service
+enable spikers-science-pal-timezone.service
+enable spikers-science-pal-clock-recovery.timer
+enable spikers-science-pal-grow-root.service

@@ -1,0 +1,289 @@
+import Foundation
+
+enum StartMenuPermissionAction: Equatable {
+    case request
+    case openSettings
+}
+
+struct StartMenuPermissionPresentation: Equatable {
+    let detail: String
+    let isGranted: Bool
+    let actionTitle: String?
+    let action: StartMenuPermissionAction?
+}
+
+struct StartMenuSharedFolderPresentation: Equatable {
+    let detail: String
+    let compactDetailLines: [String]?
+    let isGranted: Bool
+    let toggleActionTitle: String?
+}
+
+struct StartMenuMemoryPresentation: Equatable {
+    let detail: String
+    /// The MiB value behind each popup entry, in display order.
+    let choicesMiB: [Int]
+    let choiceTitles: [String]
+    let selectedIndex: Int
+    /// False when this Mac's RAM fits only the default, so the popup renders
+    /// disabled rather than offering a single-item "choice".
+    let isAdjustable: Bool
+}
+
+struct StartMenuUSBDevicePresentation: Equatable {
+    let detail: String
+    let compactDetailLines: [String]?
+    let isGranted: Bool
+    let toggleActionTitle: String?
+    /// False while the environment owns the choice, so the buttons that would
+    /// change it render disabled rather than quietly doing nothing.
+    let actionsEnabled: Bool
+}
+
+struct StartMenuPortForwardingPresentation: Equatable {
+    let detail: String
+    let compactDetailLines: [String]?
+    let isGranted: Bool
+    let grantedStatusLabel: String
+}
+
+/// Pure presentation rules for the start menu. Keeping user-visible state out
+/// of AppKit makes the important behavior testable without relying on window
+/// positions, font metrics, run-loop timing, or the current display size.
+enum StartMenuPresentation {
+    static func resources(_ resources: VMResources) -> String {
+        "\(resources.cpuCount) processor cores · \(resources.memoryGiB) GiB memory"
+            + (resources.diskGiB.map { " · \($0) GiB disk" } ?? "")
+    }
+
+    static func microphone(
+        state: MicrophoneAuthorizationState,
+        requestInFlight: Bool
+    ) -> StartMenuPermissionPresentation {
+        switch state {
+        case .authorized:
+            StartMenuPermissionPresentation(
+                detail: "Apps in Spiker's Science Pal can record from your Mac microphone.",
+                isGranted: true,
+                actionTitle: nil,
+                action: nil
+            )
+        case .notDetermined:
+            StartMenuPermissionPresentation(
+                detail: "Optional. Speaker playback works without microphone access.",
+                isGranted: false,
+                actionTitle: requestInFlight ? "Waiting…" : "Allow…",
+                action: .request
+            )
+        case .denied:
+            StartMenuPermissionPresentation(
+                detail: "Recording is off. Speaker playback will still work.",
+                isGranted: false,
+                actionTitle: "Open Settings",
+                action: .openSettings
+            )
+        case .restricted:
+            StartMenuPermissionPresentation(
+                detail: "Recording is unavailable because of this Mac’s policy.",
+                isGranted: false,
+                actionTitle: nil,
+                action: nil
+            )
+        }
+    }
+
+    static func camera(
+        state: CameraAuthorizationState,
+        requestInFlight: Bool
+    ) -> StartMenuPermissionPresentation {
+        switch state {
+        case .authorized:
+            StartMenuPermissionPresentation(
+                detail: "Apps in Spiker's Science Pal can use your Mac camera while they are recording.",
+                isGranted: true,
+                actionTitle: nil,
+                action: nil
+            )
+        case .notDetermined:
+            StartMenuPermissionPresentation(
+                detail: "Optional. The camera turns on only while an Spiker's Science Pal app uses it.",
+                isGranted: false,
+                actionTitle: requestInFlight ? "Waiting…" : "Allow…",
+                action: .request
+            )
+        case .denied:
+            StartMenuPermissionPresentation(
+                detail: "The Mac camera is off inside Spiker's Science Pal.",
+                isGranted: false,
+                actionTitle: "Open Settings",
+                action: .openSettings
+            )
+        case .restricted:
+            StartMenuPermissionPresentation(
+                detail: "Camera access is unavailable because of this Mac’s policy.",
+                isGranted: false,
+                actionTitle: nil,
+                action: nil
+            )
+        }
+    }
+
+    static func sharedFolder(
+        state: SharedFolderMenuState
+    ) -> StartMenuSharedFolderPresentation {
+        let detail: String
+        let compactDetailLines: [String]?
+        if let problem = state.problem {
+            detail = problem
+            compactDetailLines = nil
+        } else if let displayPath = state.displayPath, state.isEnabled {
+            let guestPath = "~/\(SharedFolderPolicy.guestLinkName(state.path ?? displayPath))"
+            detail = "Mac folder: \(displayPath). In Spiker's Science Pal: \(guestPath)."
+            compactDetailLines = [
+                "Mac folder: \(displayPath)",
+                "In Spiker's Science Pal: \(guestPath)",
+            ]
+        } else if let displayPath = state.displayPath {
+            detail = "Mac folder: \(displayPath). In Spiker's Science Pal: Off."
+            compactDetailLines = [
+                "Mac folder: \(displayPath)",
+                "In Spiker's Science Pal: Off",
+            ]
+        } else {
+            detail = "Optional. Pick a Mac folder to use inside Spiker's Science Pal under the same name."
+            compactDetailLines = nil
+        }
+
+        return StartMenuSharedFolderPresentation(
+            detail: detail,
+            compactDetailLines: compactDetailLines,
+            isGranted: state.isEnabled && state.problem == nil,
+            toggleActionTitle: state.path == nil ? nil : (state.isEnabled ? "Turn Off" : "Turn On")
+        )
+    }
+
+    static func usbDevice(
+        state: USBDeviceMenuState
+    ) -> StartMenuUSBDevicePresentation {
+        if let override = state.environmentOverride {
+            return StartMenuUSBDevicePresentation(
+                detail: "Set by \(USBPassthroughPolicy.environmentKey): \(override)",
+                compactDetailLines: [
+                    "Set by \(USBPassthroughPolicy.environmentKey)",
+                    override,
+                ],
+                isGranted: true,
+                toggleActionTitle: nil,
+                actionsEnabled: false
+            )
+        }
+        guard let device = state.device else {
+            return StartMenuUSBDevicePresentation(
+                detail: "Optional. Pass one connected Mac USB device to Spiker's Science Pal. macOS keeps most devices for itself.",
+                compactDetailLines: nil,
+                isGranted: false,
+                toggleActionTitle: nil,
+                actionsEnabled: true
+            )
+        }
+        let detail: String
+        let compactDetailLines: [String]
+        if !state.isEnabled {
+            detail = "Mac device: \(device.displayName). In Spiker's Science Pal: Off."
+            compactDetailLines = [
+                "Mac device: \(device.displayName)",
+                "In Spiker's Science Pal: Off",
+            ]
+        } else if state.hasUnsafeLocation {
+            detail = "Spiker's Science Pal cannot safely select the USB port for \(device.displayName). Connect it to another port and choose it again. Spiker's Science Pal will start without it."
+            compactDetailLines = [
+                "Cannot safely select this USB port",
+                "Connect to another port and choose again",
+            ]
+        } else if state.isConnected {
+            detail = "Mac device: \(device.displayName). It appears in Spiker's Science Pal, but macOS keeps its data."
+            compactDetailLines = [
+                "Mac device: \(device.displayName)",
+                "Appears in Spiker's Science Pal; macOS keeps its data",
+            ]
+        } else {
+            detail = "\(device.displayName) is not plugged in at the selected USB port. Reconnect it there or choose it again. Spiker's Science Pal will start without it."
+            compactDetailLines = [
+                "Not connected at the selected USB port",
+                "Spiker's Science Pal will start without it",
+            ]
+        }
+        return StartMenuUSBDevicePresentation(
+            detail: detail,
+            compactDetailLines: compactDetailLines,
+            isGranted: state.isEnabled && state.isConnected && !state.hasUnsafeLocation,
+            toggleActionTitle: state.isEnabled ? "Turn Off" : "Turn On",
+            actionsEnabled: true
+        )
+    }
+
+    static func portForwarding(
+        mappings: [PortForwardMapping]
+    ) -> StartMenuPortForwardingPresentation {
+        if mappings.isEmpty {
+            return StartMenuPortForwardingPresentation(
+                detail: "Optional. Reach services running in Spiker's Science Pal at localhost on this Mac.",
+                compactDetailLines: nil,
+                isGranted: false,
+                grantedStatusLabel: "●  0 Ports"
+            )
+        }
+        if mappings.count == 1, let mapping = mappings.first {
+            return StartMenuPortForwardingPresentation(
+                detail: "localhost:\(mapping.hostPort) → "
+                    + "Spiker's Science Pal:\(mapping.guestPort) · \(mapping.protocol.displayName)",
+                compactDetailLines: [
+                    "Mac: localhost:\(mapping.hostPort)",
+                    "Spiker's Science Pal: port \(mapping.guestPort) · \(mapping.protocol.displayName)",
+                ],
+                isGranted: true,
+                grantedStatusLabel: "●  1 Port"
+            )
+        }
+        return StartMenuPortForwardingPresentation(
+            detail: "\(mappings.count) localhost mappings. Available only on this Mac.",
+            compactDetailLines: [
+                "\(mappings.count) localhost mappings",
+                "Available only on this Mac",
+            ],
+            isGranted: true,
+            grantedStatusLabel: "●  \(mappings.count) Ports"
+        )
+    }
+
+    static func memory(
+        preferredMiB: Int,
+        hostMemoryMiB: Int
+    ) -> StartMenuMemoryPresentation {
+        let choices = MemoryPolicy.allowedChoicesMiB(hostMemoryMiB: hostMemoryMiB)
+        let selected = MemoryPolicy.resolvedMemoryMiB(
+            preferredMiB: preferredMiB,
+            hostMemoryMiB: hostMemoryMiB
+        )
+        let titles = choices.map { choice in
+            MemoryPolicy.choiceTitle(memoryMiB: choice, hostMemoryMiB: hostMemoryMiB)
+        }
+        let isAdjustable = choices.count > 1
+        return StartMenuMemoryPresentation(
+            detail: isAdjustable
+                ? "Higher allocations may affect macOS performance. Applies on the next launch."
+                : "This Mac’s memory fits the \(MemoryPolicy.displayLabel(memoryMiB: MemoryPolicy.defaultMemoryMiB)) default.",
+            choicesMiB: choices,
+            choiceTitles: titles,
+            selectedIndex: choices.firstIndex(of: selected) ?? 0,
+            isAdjustable: isAdjustable
+        )
+    }
+
+    static func immersiveDetail(isEnabled: Bool) -> String {
+        isEnabled
+            ? "Spiker's Science Pal opens Full Screen with the Mac menu bar and Dock hidden."
+            : "Spiker's Science Pal opens in a window with the Mac menu bar and Dock available."
+    }
+
+}

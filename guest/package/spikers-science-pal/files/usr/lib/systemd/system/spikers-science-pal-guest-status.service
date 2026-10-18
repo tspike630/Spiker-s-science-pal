@@ -1,0 +1,16 @@
+[Unit]
+Description=Report Spiker's Science Pal guest versions to the Mac app
+ConditionPathExists=/dev/virtio-ports/dev.spikerssciencepal.guest
+After=spikers-science-pal-package-install.service
+
+[Service]
+ExecStart=/usr/lib/spikers-science-pal/guest-status
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

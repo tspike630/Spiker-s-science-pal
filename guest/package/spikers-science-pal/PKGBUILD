@@ -1,0 +1,63 @@
+# Maintainer: Spiker's Science Pal <https://github.com/tspike630/Spiker-s-science-pal>
+#
+# Everything Spiker's Science Pal adds to a stock aarch64 Spiker's Science Pal install running in
+# the Mac app's VM: the host bridges (clipboard, audio, camera, battery, time
+# zone, Touch ID, settings), the Mac shared folder, the launcher's per-boot
+# settings, and the Hyprland display and input profile for the VM. It never
+# edits a file another package owns; see guest/package/README.md.
+
+pkgname=spikers-science-pal
+pkgver=0.1.0
+pkgrel=23
+pkgdesc="Mac host integration for Spiker's Science Pal running in Spiker's Science Pal"
+arch=('aarch64')
+url='https://github.com/tspike630/Spiker-s-science-pal'
+license=('MIT')
+# The app installs this package at a VM's boot (package-install) from its own
+# copy, with no guarantee of network or a current package database. A new
+# entry here would have to be downloaded then and could fail the whole
+# upgrade, so add what the guest needs to optdepends: the factory image
+# installs those.
+depends=(
+  'bash'
+  'dkms'
+  'fcitx5-chewing'
+  'fcitx5-hangul'
+  'fcitx5-mozc'
+  'gtk3'
+  'linux-omarchy-headers'
+  'noto-fonts-cjk'
+  'openssl'
+  'polkit'
+  'python'
+  'python-gobject'
+  'systemd'
+  'v4l2loopback-dkms'
+)
+optdepends=(
+  'wf-recorder: screen recording, where gpu-screen-recorder refuses VirGL'
+)
+backup=(
+  'etc/chromium-flags.conf'
+  'etc/limine-entry-tool.d/50-spikers-science-pal-console.conf'
+  'etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf'
+)
+install=spikers-science-pal.install
+options=('!debug' '!strip')
+_battery=spikers-science-pal-battery
+_battery_version=1.3.0
+
+package() {
+  cp -r --preserve=mode "$startdir/files/." "$pkgdir/"
+  chmod 0750 "$pkgdir/etc/sudoers.d"
+  chmod 0440 "$pkgdir/etc/sudoers.d/"*
+  # Watched by the launcher from login; ghostty-desktop-entry links into it.
+  install -d "$pkgdir/usr/share/spikers-science-pal/xdg/applications"
+  for _file in dkms.conf Makefile "$_battery.c"; do
+    install -Dm0644 "$startdir/battery/$_file" "$pkgdir/usr/src/$_battery-$_battery_version/$_file"
+  done
+  install -d "$pkgdir/etc/fonts/conf.d"
+  ln -s /usr/share/fontconfig/conf.default/30-spikers-science-pal.conf "$pkgdir/etc/fonts/conf.d/30-spikers-science-pal.conf"
+  install -Dm0644 "$startdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  printf '%s\n' "$pkgver-$pkgrel" >"$pkgdir/usr/share/spikers-science-pal/version"
+}

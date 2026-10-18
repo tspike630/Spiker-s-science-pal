@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>Spiker's Science Pal</string>
+  <key>CFBundleExecutable</key>
+  <string>spikers-vm-helper</string>
+  <key>CFBundleIdentifier</key>
+  <string>dev.spikerssciencepal.native</string>
+  <key>CFBundleIconFile</key>
+  <string>SpikersSciencePal.icns</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>Spiker's Science Pal</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+	<string>0.4.0</string>
+  <key>CFBundleVersion</key>
+	<string>5</string>
+  <key>LSArchitecturePriority</key>
+  <array>
+    <string>arm64</string>
+  </array>
+  <key>LSUIElement</key>
+  <true/>
+  <key>LSMinimumSystemVersion</key>
+  <string>15.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Spiker's Science Pal reads and writes this folder only if you choose to share it with Spiker's Science Pal.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Spiker's Science Pal reads and writes this folder only if you choose to share it with Spiker's Science Pal.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Spiker's Science Pal reads and writes this folder only if you choose to share it with Spiker's Science Pal.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Spiker's Science Pal uses the Mac camera only while software inside the virtual machine records video.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Spiker's Science Pal uses the Mac microphone only when software inside the virtual machine records audio.</string>
+  <key>NSRemovableVolumesUsageDescription</key>
+  <string>Spiker's Science Pal stores its virtual machine on this drive only if you choose to keep it there.</string>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+</dict>
+</plist>

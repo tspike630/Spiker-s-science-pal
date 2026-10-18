@@ -1,0 +1,5 @@
+enable spikers-native-audio-bridge.service
+enable spikers-native-camera-bridge.service
+enable spikers-native-clipboard-bridge.service
+enable spikers-native-mac-share-link.service
+enable spikers-science-pal-session.service

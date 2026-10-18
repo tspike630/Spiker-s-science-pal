@@ -1,0 +1,73 @@
+#!/bin/bash
+#
+# Per-user Spiker's Science Pal setup. Idempotent; runs as the user at every graphical
+# login (spikers-science-pal-session.service) and once for the owner right after
+# Spiker's Science Pal's first-boot provisioning creates the account.
+#
+#   user-setup [--reload]
+#
+# It places one loader in Spiker's Science Pal's Hyprland toggles directory, which Spiker's Science Pal
+# loads after the user's own configuration, adds menu rows once and turns
+# Spiker's Science Pal's idle screensaver and lock off once; a user's later edits stay.
+
+set -euo pipefail
+
+state_home=${XDG_STATE_HOME:-$HOME/.local/state}
+toggles=$state_home/omarchy/toggles/hypr
+loader=$toggles/zz-spikers-science-pal.lua
+expected="-- Spiker's Science Pal: Mac VM display, cursor and input additions (package-owned).
+pcall(dofile, \"/usr/share/spikers-science-pal/hyprland.lua\")"
+
+changed=0
+if [[ ! -f $loader || $(<"$loader") != "$expected" ]]; then
+  mkdir -p "$toggles"
+  printf '%s\n' "$expected" >"$loader.tmp"
+  mv -f "$loader.tmp" "$loader"
+  changed=1
+fi
+
+# Settings and Touch ID rows in the Spiker's Science Pal menu, added once.
+"${SPIKERS_SCIENCE_PAL_MENU_ENTRIES:-/usr/lib/spikers-science-pal/menu-entries}" || true
+# Spiker's Science Pal's idle screensaver and lock off in the VM, once.
+"${SPIKERS_SCIENCE_PAL_IDLE_DEFAULTS:-/usr/lib/spikers-science-pal/idle-defaults}" || true
+
+# Extra backgrounds for Spiker's Science Pal's themes, offered beside the theme's own in
+# its background switcher; the current background is never changed. Each is
+# linked into ~/.config/omarchy/backgrounds/<theme> once, so a user who
+# removes it keeps it removed.
+backgrounds=${SPIKERS_SCIENCE_PAL_BACKGROUNDS:-/usr/share/spikers-science-pal/backgrounds}
+for source in "$backgrounds"/*/*; do
+  [[ -f $source ]] || continue
+  theme=${source%/*}
+  theme=${theme##*/}
+  name=${source##*/}
+  marker=$state_home/spikers-science-pal/backgrounds/$theme/$name
+  [[ -e $marker ]] && continue
+  target=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/backgrounds/$theme/$name
+  if [[ ! -e $target && ! -L $target ]]; then
+    mkdir -p "${target%/*}"
+    ln -s "$source" "$target"
+  fi
+  mkdir -p "${marker%/*}"
+  : >"$marker"
+done
+
+if ((changed)) && [[ ${1:-} == --reload && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  hyprctl reload >/dev/null 2>&1 || true
+fi
+
+# Say once that a VM from an earlier version of the app is attached. The
+# Spiker's Science Pal shell, which shows notifications, can still be starting at login.
+previous=${SPIKERS_SCIENCE_PAL_PREVIOUS_DEVICE:-/dev/disk/by-id/virtio-spikers-previous}
+marker=$state_home/spikers-science-pal/previous-vm-announced
+if [[ -b $previous && ! -e $marker ]]; then
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if timeout 5 notify-send "Your previous Spiker's Science Pal VM is attached" \
+      "Copy its files with Setup > Import Previous VM, or run spikers-science-pal-import-previous." 2>/dev/null; then
+      mkdir -p "${marker%/*}"
+      : >"$marker"
+      break
+    fi
+    sleep 1
+  done
+fi

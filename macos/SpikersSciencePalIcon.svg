@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+  width="1024" height="1024" viewBox="0 0 1024 1024"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Spiker's Science Pal app icon</title>
+  <desc id="desc">A dark rounded tile with an original orbit mark for Spiker's Science Pal.</desc>
+  <rect x="96" y="96" width="832" height="832" rx="196" fill="#151912"/>
+  <rect x="112" y="112" width="800" height="800" rx="184" fill="none" stroke="#9ECE6A" stroke-opacity="0.35" stroke-width="6"/>
+  <g fill="none" stroke-linecap="round">
+    <ellipse cx="512" cy="512" rx="250" ry="108" transform="rotate(-28 512 512)" stroke="#7DCFFF" stroke-width="28"/>
+    <ellipse cx="512" cy="512" rx="250" ry="108" transform="rotate(32 512 512)" stroke="#9ECE6A" stroke-width="28"/>
+    <ellipse cx="512" cy="512" rx="250" ry="108" transform="rotate(92 512 512)" stroke="#C0CAF5" stroke-width="22" stroke-opacity="0.85"/>
+  </g>
+  <circle cx="512" cy="512" r="54" fill="#E0F2FE"/>
+  <circle cx="742" cy="404" r="28" fill="#7DCFFF"/>
+  <circle cx="318" cy="610" r="18" fill="#9ECE6A"/>
+</svg>

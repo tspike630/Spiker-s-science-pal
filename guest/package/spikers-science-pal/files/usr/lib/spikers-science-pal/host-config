@@ -1,0 +1,31 @@
+#!/bin/bash
+#
+# Publish the Spiker's Science Pal launcher's settings for this boot. The Mac app passes
+# them as the systemd credential spikerssciencepal.host (SMBIOS type 11): one line of
+# space-separated tokens, the same vocabulary the kernel command line carried
+# before the guest owned its boot (spikerssciencepal.keyboard=jis,
+# spikers.shared_folder_name=Work, ...). Readers use /run/spikers-science-pal/cmdline.
+#
+# Without the credential (another hypervisor, or a manual boot) nothing is
+# written, and every unit conditioned on the file stays inactive.
+
+set -euo pipefail
+
+credential=${CREDENTIALS_DIRECTORY:-}/spikerssciencepal.host
+output=${SPIKERS_SCIENCE_PAL_HOST_CONFIG_OUTPUT:-/run/spikers-science-pal/cmdline}
+
+[[ -n ${CREDENTIALS_DIRECTORY:-} && -f $credential ]] || exit 0
+
+# One printable line, bounded, no control characters.
+size=$(wc -c <"$credential" | tr -d " ")
+((size <= 16384)) || { echo "spikers-science-pal-host-config: oversized host settings" >&2; exit 1; }
+value=$(tr -d '\n' <"$credential")
+if [[ $value == *[![:print:]]* ]]; then
+  echo "spikers-science-pal-host-config: host settings contain control characters" >&2
+  exit 1
+fi
+
+install -d -m 0755 "${output%/*}"
+printf '%s\n' "$value" >"$output.tmp"
+chmod 0644 "$output.tmp"
+mv -f "$output.tmp" "$output"

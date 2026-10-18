@@ -1,0 +1,13 @@
+[Unit]
+Description=Follow the Mac time zone until manually changed in Spiker's Science Pal
+ConditionPathExists=/dev/virtio-ports/dev.spikerssciencepal.timezone
+After=spikers-science-pal-settings.service omarchy-provision-owner.service
+StartLimitIntervalSec=0
+
+[Service]
+ExecStart=/usr/bin/spikers-science-pal-timezone
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

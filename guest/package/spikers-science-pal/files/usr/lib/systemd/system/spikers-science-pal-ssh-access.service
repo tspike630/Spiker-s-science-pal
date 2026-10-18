@@ -1,0 +1,11 @@
+[Unit]
+Description=Start SSH when the Spiker's Science Pal launcher forwards it
+ConditionPathExists=/run/spikers-science-pal/cmdline
+After=spikers-science-pal-host-config.service network.target ufw.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/spikers-science-pal/ssh-access
+
+[Install]
+WantedBy=multi-user.target
