@@ -95,19 +95,21 @@ passes `spikers-science-pal-*.pkg.tar.zst` and
 A disk built from `main2` at `623d584` or later already contains
 `spikers-science-pal-research`. Opening that VM does not need `pacman -U`.
 
-On 2026-10-18 `make guest-package` completed in the ARM64 builder and wrote:
+On 2026-10-18 `make guest-package` completed in the ARM64 builder. The same
+archives are committed under `guest/prebuilt/` so they can be downloaded:
 
-- `dist/guest/packages/spikers-science-pal-0.1.0-23-aarch64.pkg.tar.zst`
-- `dist/guest/packages/spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst`
+- [spikers-science-pal-0.1.0-23-aarch64.pkg.tar.zst](https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-preinstall-receipt-b758/guest/prebuilt/spikers-science-pal-0.1.0-23-aarch64.pkg.tar.zst)
+- [spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst](https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-preinstall-receipt-b758/guest/prebuilt/spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst)
 
-Git ignores `dist/`, so those files are not download links. The research
-archive is `arch = any`, `pkgver = 0.4.0-1`.
+The research archive is `arch = any`, `pkgver = 0.4.0-1`. On an existing VM,
+`sudo pacman -U` of the integration archive first, then the research archive,
+installs the workbench. A factory disk built from `main2` at `623d584` or later
+installs both during `pacstrap` and does not need that manual step.
 
-`make guest` then created the 20 GiB factory disk and stopped while mounting
-it: `unknown filesystem type 'btrfs'`. Kernel 6.12.94+ on this machine has no
-btrfs module, so the factory image was not produced. This repository has no
-GitHub Releases and no release tags, and there is no public installer URL.
-`make release` and `make publish` still run on Apple Silicon, where the kernel
-can mount that btrfs disk.
+`make guest` created the 20 GiB factory disk and stopped while mounting it:
+`unknown filesystem type 'btrfs'`. Kernel 6.12.94+ on this machine has no btrfs
+module, so the factory image and the Mac DMG were not produced. This repository
+has no GitHub Releases and no release tags. `make release` and `make publish`
+still run on Apple Silicon, where the kernel can mount that btrfs disk.
 
-科研包已构建并预装：两个包已由 `make guest-package` 打出；预装接线在 `main2` 的 `623d584`。安装包推送位置是该提交的源码。工厂磁盘没有生成，没有公开下载链接。
+科研包已构建并预装：两个包已推到 `guest/prebuilt/`。安装包推送位置是上面两个 raw 链接。工厂磁盘和 DMG 没有生成。
