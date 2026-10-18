@@ -169,7 +169,7 @@ bound() { # modmask key description
   hc binds -j | jq -e --argjson m "$1" --arg k "$2" --arg d "$3" \
     'any(.[]; .modmask == $m and (.key | ascii_upcase) == $k and .description == $d)' >/dev/null
 }
-for binding in "64 RETURN Terminal" "64 SPACE Spiker's Science Pal menu"; do
+for binding in "64 RETURN Terminal" "64 SPACE Omarchy menu"; do
   read -r modmask key description <<<"$binding"
   bound "$modmask" "$key" "$description" && ok "Super + ${key,,} is bound to $description" ||
     bad "Super + ${key,,} is not bound to $description"
