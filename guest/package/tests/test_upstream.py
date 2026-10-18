@@ -98,7 +98,7 @@ class UpstreamContracts(unittest.TestCase):
             for line in path.read_text(errors="ignore").splitlines():
                 if line.lstrip().startswith("#"):
                     continue
-                for match in re.finditer(r"(?<![\w./-])spikers-[a-z0-9][a-z0-9-]*[a-z0-9](?![\w.-])", line):
+                for match in re.finditer(r"(?<![\w./-])omarchy-[a-z0-9][a-z0-9-]*[a-z0-9](?![\w.-])", line):
                     name = match.group(0)
                     if name in NOT_COMMANDS or name.startswith(OWN_PREFIXES) or name in commands:
                         continue

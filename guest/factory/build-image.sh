@@ -148,14 +148,18 @@ done
 
 # --- disk ----------------------------------------------------------------
 log "Creating a ${size_gib} GiB GPT disk"
-truncate -s "${size_gib}G" "$disk"
+df -h "$work" >&2 || true
+truncate -s "${size_gib}G" "$disk" || fail "could not create the disk image at $disk"
 # Partition types: EFI System, and Linux root (ARM64) so systemd's GPT tools
 # recognise the root partition.
-sfdisk --quiet "$disk" <<EOF
+if ! sfdisk "$disk" <<EOF
 label: gpt
 start=2048, size=$((esp_mib * 2048)), type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="SPIKERS_EFI"
 start=$((2048 + esp_mib * 2048)), type=B921B045-1DF0-41C3-AF44-4C6F280D3FAE, name="spikers-root"
 EOF
+then
+  fail "could not partition $disk"
+fi
 
 partition_field() { # partition-number field
   sfdisk --json "$disk" | jq -r --argjson n "$1" --arg f "$2" '.partitiontable.partitions[$n - 1][$f]'

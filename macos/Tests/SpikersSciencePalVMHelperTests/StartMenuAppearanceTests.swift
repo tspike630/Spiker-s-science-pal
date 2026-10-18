@@ -37,7 +37,7 @@ struct StartMenuAppearanceTests {
 
         #expect(action.keyEquivalent == "\r")
         #expect(action.accessibilityLabel() == "Launch Spiker's Science Pal")
-        #expect(action.attributedTitle.string == "LAUNCH SPIKERS")
+        #expect(action.attributedTitle.string == "LAUNCH SPIKER'S SCIENCE PAL")
         #expect(action.focusRingType == .none)
         #expect(!action.isBordered)
 
