@@ -54,6 +54,8 @@ full three-level table per field, served on `127.0.0.1:8765`; forward port
 - Team work lives in `~/science/` (git-versionable): `projects/ notes/ data/
   domains/ exports/ statements/`.
 
+Beginners follow [`科研版使用说明.md`](../../../科研版使用说明.md): install check, the six commands every field uses, then one concrete question per field.
+
 ## Build & install
 
 ```sh

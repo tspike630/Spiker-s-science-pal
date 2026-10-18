@@ -932,6 +932,8 @@ invited judge's domain:
   field page shows the full L1/L2/L3 table, datasets and roadmap) on
   `127.0.0.1:8765` (forward port 8765 in the app for the Mac's browser).
 
+安装桌面之后的操作步骤在 [`科研版使用说明.md`](科研版使用说明.md)。
+
 Source of truth for all 15 fields is
 `guest/package/spikers-science-pal-research/tools/build-judges.py` (45
 runnable scripts, all stdlib or optdepends). Build with
