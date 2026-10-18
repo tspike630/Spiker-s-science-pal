@@ -95,15 +95,19 @@ passes `spikers-science-pal-*.pkg.tar.zst` and
 A disk built from `main2` at `623d584` or later already contains
 `spikers-science-pal-research`. Opening that VM does not need `pacman -U`.
 
-The research archive was built here on 2026-10-18:
-`spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst` (`arch = any`,
-`pkgver = 0.4.0-1`). It lives under `dist/guest/packages/`, which git ignores,
-so that file is not a download link.
+On 2026-10-18 `make guest-package` completed in the ARM64 builder and wrote:
 
-This repository has no GitHub Releases and no release tags. The builder that
-produced the archive is x86_64 and cannot run the ARM64 factory container, so
-it did not produce a factory disk or a DMG. `make release` and `make publish`
-still run on Apple Silicon. Until that draft release is published, there is
-no public installer URL.
+- `dist/guest/packages/spikers-science-pal-0.1.0-23-aarch64.pkg.tar.zst`
+- `dist/guest/packages/spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst`
 
-科研包已构建并预装：预装接线在 `main2` 的 `623d584`。安装包推送位置是该提交的源码，不是一个公开的镜像地址。
+Git ignores `dist/`, so those files are not download links. The research
+archive is `arch = any`, `pkgver = 0.4.0-1`.
+
+`make guest` then created the 20 GiB factory disk and stopped while mounting
+it: `unknown filesystem type 'btrfs'`. Kernel 6.12.94+ on this machine has no
+btrfs module, so the factory image was not produced. This repository has no
+GitHub Releases and no release tags, and there is no public installer URL.
+`make release` and `make publish` still run on Apple Silicon, where the kernel
+can mount that btrfs disk.
+
+科研包已构建并预装：两个包已由 `make guest-package` 打出；预装接线在 `main2` 的 `623d584`。安装包推送位置是该提交的源码。工厂磁盘没有生成，没有公开下载链接。
