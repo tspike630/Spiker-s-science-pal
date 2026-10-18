@@ -27,6 +27,8 @@ def report(title, headline, rows, headers, filename, real):
         writer.writerow(headers)
         writer.writerows(rows)
     kind = "真实数据结论" if real else "合成数据冒烟，非作品结论"
+    # First conclusion line in report.html. experiments.json uses this same string.
+    first_line = headline
     head = "".join("<th>{}</th>".format(html_lib.escape(str(h))) for h in headers)
     body = []
     for row in rows:
@@ -38,11 +40,11 @@ def report(title, headline, rows, headers, filename, real):
         "<style>body{{font:16px/1.5 system-ui,sans-serif;margin:2rem;background:#0d1117;color:#e6edf3}}"
         "table{{border-collapse:collapse}} td,th{{border:1px solid #30363d;padding:.35rem .7rem}}"
         ".warn{{color:#f0883e}} .ok{{color:#3fb950}}</style>"
-        "<h1>{}</h1><p class='{}'>{}</p><p>{}</p><table><tr>{}</tr>{}</table>"
+        "<h1>{}</h1><p class='{}'>{}</p><p class='{}'>{}</p><table><tr>{}</tr>{}</table>"
         "<p>CSV: workspace/{}</p>"
     ).format(
-        html_lib.escape(title), html_lib.escape(title), klass, html_lib.escape(kind),
-        html_lib.escape(headline), head, "".join(body), html_lib.escape(filename),
+        html_lib.escape(title), html_lib.escape(title), klass, html_lib.escape(first_line),
+        klass, html_lib.escape(kind), head, "".join(body), html_lib.escape(filename),
     )
     Path("workspace/report.html").write_text(page, encoding="utf-8")
     print(kind)
@@ -52,6 +54,59 @@ def report(title, headline, rows, headers, filename, real):
     if len(rows) > 12:
         print("  ... 共 {} 行".format(len(rows)))
     print("结果已存 workspace/{} 与 workspace/report.html —— 答辩可引用。".format(filename))
+    # experiments.json —— SciencePal Agent 消费规范。headline 与 report.html 第一行同一变量。
+    ctx = globals().get("_CTX", {})
+    source_hint = "合成数据冒烟"
+    raw_dir = Path("data/raw")
+    if raw_dir.exists():
+        for source_file in sorted(raw_dir.glob("*/SOURCE.txt")):
+            lines = source_file.read_text(encoding="utf-8").strip().splitlines()
+            if lines:
+                source_hint = lines[0]
+            break
+    meta = {
+        "domain": ctx.get("domain", ""),
+        "judge": ctx.get("judge", ""),
+        "title": title,
+        "real": bool(real),
+        "headline": headline,
+        "source": source_hint,
+        "artifacts": [filename, "report.html"],
+    }
+    Path("workspace/experiments.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+    figures = Path("workspace/figures")
+    figures.mkdir(parents=True, exist_ok=True)
+    for image in Path("workspace").glob("*"):
+        if image.suffix.lower() in {".png", ".svg", ".jpg", ".jpeg"} and image.is_file():
+            (figures / image.name).write_bytes(image.read_bytes())
+    table_lines = ["| " + " | ".join(str(h) for h in headers) + " |",
+                   "|" + "|".join("---" for _ in headers) + "|"]
+    for row in rows[:8]:
+        table_lines.append("| " + " | ".join(str(c) for c in row) + " |")
+    (figures / "key-table.md").write_text(
+        "# {}\n\n{}\n\n本工作台的 L3 不产图片。上表是 report.html 里的关键数字。\n".format(
+            title, "\n".join(table_lines)),
+        encoding="utf-8")
+    domain = meta["domain"] or "unknown"
+    pack = Path("exports")
+    pack.mkdir(parents=True, exist_ok=True)
+    (pack / "答辩素材-{}.md".format(domain)).write_text(
+        "# 答辩素材 · {}\n\n".format(domain)
+        + "- 标题：{}\n".format(title)
+        + "- 评委：{}\n".format(meta["judge"])
+        + "- 结论：{}\n".format(headline)
+        + "- 数据是否真实：{}\n".format("是" if real else "否")
+        + "- 数据源：{}\n\n".format(source_hint)
+        + "## 关键材料\n\n"
+        + "1. workspace/figures/key-table.md\n"
+        + "2. workspace/report.html\n\n"
+        + "## 与 SciencePal 平台的对接\n\n"
+        + "SciencePal 平台（sciencepal.ai）上的 Agent 读取 workspace/experiments.json，"
+        + "引用其中的 headline 和 real。这些数字在科研虚拟机 Spiker's Science Pal 里算出。\n\n"
+        + "## 评委能问什么\n\n"
+        + "{}\n".format(ctx.get("ask") or "这个数是真实数据还是合成冒烟？"),
+        encoding="utf-8")
 
 
 def smoke_banner(hint):

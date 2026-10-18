@@ -928,9 +928,12 @@ invited judge's domain:
 - **科研工作台**：`~/science/{projects,notes,data,domains,exports,statements}`
   seeded on first use; the menu gains 评委导览 / 新建实验记录 / 文献库 (Zotero) /
   Jupyter Lab / 科研工作台目录 / 作品包·导出 rows.
-- **能力矩阵页**：`judges.overview` opens the 16-page function map (each
-  field page shows the full L1/L2/L3 table, datasets and roadmap) on
-  `127.0.0.1:8765` (forward port 8765 in the app for the Mac's browser).
+- **能力矩阵页**：`judges.overview` opens the 16-page function map inside the
+  research VM (each field page shows the full L1/L2/L3 table, datasets and
+  roadmap) on `127.0.0.1:8765`. That address is the VM's local matrix.
+  The hackathon's runnable SciencePal link is an Agent on the SciencePal
+  platform (sciencepal.ai), not this page. Forward port 8765 in the app
+  to view the matrix from the Mac.
 
 Source of truth for all 15 fields is
 `guest/package/spikers-science-pal-research/tools/build-judges.py` (45

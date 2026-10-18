@@ -1825,11 +1825,50 @@ OVERVIEW = {
   "id": "overview", "name_en": "Research Function Matrix",
   "name_zh": "科研能力总览",
   "role": "15 位评委 · 15 个领域深度科研功能台",
-  "research": "AI4Science Hackathon · SciencePal 科研虚拟机",
+  "research": "AI4Science Hackathon · 科研虚拟机 Spiker's Science Pal",
   "menu_label": "科研能力总览 · 15 领域功能矩阵",
   "focus": ("一台虚拟机覆盖 15 个科研领域，每个领域都是一个深度工作台："
             "L1 开箱演示 → L2 标准方法 → L3 真实开放数据实验（断网时同一条管线用合成数据冒烟），"
             "含科学背景、真实数据集、参考文献与实验路线。"),
 }
 
+def _overview_record(domain, judge, area, l1_desc, l2_desc, l3_desc, data_source, experiments_path):
+    return {
+        "domain": domain,
+        "judge": judge,
+        "area": area,
+        "l1_desc": l1_desc,
+        "l2_desc": l2_desc,
+        "l3_desc": l3_desc,
+        "data_source": data_source,
+        "experiments_path": experiments_path,
+    }
+
+
+def write_domains_overview(judges, overview):
+    records = [_overview_record(
+        "overview", overview["name_zh"], overview["research"],
+        "16 页能力矩阵", "", "",
+        "本机页面 http://127.0.0.1:8765/ （科研虚拟机内的总览，不是 SciencePal 平台链接）",
+        "",
+    )]
+    for judge in judges:
+        cap = judge["capabilities"]
+        deep = cap["deep"]
+        datasets = deep.get("datasets") or []
+        if datasets:
+            data_source = "{} {}".format(datasets[0]["name"], datasets[0]["url"])
+        else:
+            data_source = ""
+        records.append(_overview_record(
+            judge["id"], judge["name_zh"], judge["research"],
+            cap["workflow"]["title"], deep["l2"]["title"], deep["l3"]["title"],
+            data_source,
+            "~/science/domains/{}/workspace/experiments.json".format(judge["id"]),
+        ))
+    path = Path(__file__).resolve().parents[1] / "files/usr/share/spikers-science-pal-research/domains-overview.json"
+    path.write_text(json.dumps({"records": records}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+
+write_domains_overview(JUDGES, OVERVIEW)
 print(json.dumps({"overview": OVERVIEW, "judges": JUDGES}, ensure_ascii=False, indent=1))
