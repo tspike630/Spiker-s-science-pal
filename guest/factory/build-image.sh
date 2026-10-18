@@ -148,33 +148,30 @@ done
 
 # --- disk ----------------------------------------------------------------
 log "Creating a ${size_gib} GiB GPT disk"
-truncate -s "${size_gib}G" "$disk" || fail "could not create the disk image at $disk"
+truncate -s "${size_gib}G" "$disk"
 # Partition types: EFI System, and Linux root (ARM64) so systemd's GPT tools
-# recognise the root partition. --no-reread: this is a regular file, and a
-# newer sfdisk exits non-zero when it cannot re-read that file as a disk.
-if ! sfdisk --quiet --no-reread "$disk" <<EOF
+# recognise the root partition. The names match the layout the factory image
+# was first built with.
+sfdisk --quiet "$disk" <<EOF
 label: gpt
-start=2048, size=$((esp_mib * 2048)), type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="SPIKERS_EFI"
-start=$((2048 + esp_mib * 2048)), type=B921B045-1DF0-41C3-AF44-4C6F280D3FAE, name="spikers-root"
+start=2048, size=$((esp_mib * 2048)), type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="OMARCHY_EFI"
+start=$((2048 + esp_mib * 2048)), type=B921B045-1DF0-41C3-AF44-4C6F280D3FAE, name="omarchy-root"
 EOF
-then
-  fail "could not partition $disk"
-fi
 
 partition_field() { # partition-number field
-  sfdisk --json --no-reread "$disk" | jq -er --argjson n "$1" --arg f "$2" '.partitiontable.partitions[$n - 1][$f]'
+  sfdisk --json "$disk" | jq -r --argjson n "$1" --arg f "$2" '.partitiontable.partitions[$n - 1][$f]'
 }
-esp_start=$(partition_field 1 start) || fail "could not read the EFI partition start"
-esp_size=$(partition_field 1 size) || fail "could not read the EFI partition size"
-root_start=$(partition_field 2 start) || fail "could not read the root partition start"
-root_size=$(partition_field 2 size) || fail "could not read the root partition size"
-root_partuuid=$(partition_field 2 uuid | tr 'A-Z' 'a-z') || fail "could not read the root partition UUID"
+esp_start=$(partition_field 1 start)
+esp_size=$(partition_field 1 size)
+root_start=$(partition_field 2 start)
+root_size=$(partition_field 2 size)
+root_partuuid=$(partition_field 2 uuid | tr 'A-Z' 'a-z')
 
-esp_loop=$(losetup --find --show --offset $((esp_start * 512)) --sizelimit $((esp_size * 512)) "$disk") || fail "could not map the EFI partition"
-root_loop=$(losetup --find --show --offset $((root_start * 512)) --sizelimit $((root_size * 512)) "$disk") || fail "could not map the root partition"
+esp_loop=$(losetup --find --show --offset $((esp_start * 512)) --sizelimit $((esp_size * 512)) "$disk")
+root_loop=$(losetup --find --show --offset $((root_start * 512)) --sizelimit $((root_size * 512)) "$disk")
 
-mkfs.vfat -F 32 -n SPIKERS_EFI "$esp_loop" >/dev/null
-mkfs.btrfs -q -L spikers "$root_loop"
+mkfs.vfat -F 32 -n OMARCHY_EFI "$esp_loop" >/dev/null
+mkfs.btrfs -q -L omarchy "$root_loop"
 esp_uuid=$(blkid -s UUID -o value "$esp_loop")
 root_uuid=$(blkid -s UUID -o value "$root_loop")
 
@@ -205,7 +202,7 @@ done
 # and every VM makes its own on first boot (the image-target keyring request).
 install -d -m 0755 "$target/etc/pacman.d"
 pacman-key --gpgdir "$target/etc/pacman.d/gnupg" --init >/dev/null 2>&1
-pacman-key --gpgdir "$target/etc/pacman.d/gnupg" --populate archlinuxarm spikers >/dev/null 2>&1
+pacman-key --gpgdir "$target/etc/pacman.d/gnupg" --populate archlinuxarm omarchy >/dev/null 2>&1
 
 target_install() {
   pacstrap -C "$builder_conf" -G -M -c "$target" --needed "$@"
