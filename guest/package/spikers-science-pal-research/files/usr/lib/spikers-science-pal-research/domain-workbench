@@ -109,8 +109,8 @@ def main():
         f"## 工具链\n\n{render_tools(cap['tools'], state)}\n\n"
         f"{pip_hint}\n"
         f"## 目录约定\n\n"
-        f"- `data/`：该领域数据集与来源说明（演示用合成/内联数据，离线可跑）\n"
-        f"- `workspace/`：你的实验产物与中间文件\n"
+        f"- `data/`：`bash data/data_fetch.sh` 把开放数据放进 `data/raw/`（重复运行会跳过）\n"
+        f"- `workspace/`：L3 写出 CSV 和 `report.html`，答辩直接打开\n"
         f"- 实验记录用菜单「新建实验记录」写到 `~/science/notes/`，成果进 `~/science/exports/`\n",
         encoding="utf-8")
 
@@ -119,9 +119,11 @@ def main():
     (target / "l3_extend.py").write_text(deep_["l3"]["code"], encoding="utf-8")
     # Optional real-data downloader, declared by the field's L3 block.
     fetch = deep_["l3"].get("data_fetch", "")
-    (target / "data" / "data_fetch.sh").write_text(
+    fetch_path = target / "data" / "data_fetch.sh"
+    fetch_path.write_text(
         fetch or "#!/bin/bash\necho '该领域未提供数据下载脚本；见 README.md 数据集表。'\n",
         encoding="utf-8")
+    fetch_path.chmod(0o755)
     (target / "launchpad.ipynb").write_text(
         json.dumps(make_notebook(cap["title"], cap["intro"],
                                  cap["workflow"]["title"], cap["workflow"]["code"],
@@ -136,7 +138,10 @@ def main():
                                  deep_["l3"]["title"], deep_["l3"]["code"], deep_["l3"]["note"]),
                    ensure_ascii=False, indent=1), encoding="utf-8")
     (target / "data" / "README.md").write_text(
-        "把该领域数据集放在这里，并记录来源与许可。\n", encoding="utf-8")
+        "真实数据放在 raw/。运行 bash data_fetch.sh 下载（已有文件会跳过），"
+        "来源写在 raw/*/SOURCE.txt。没有网络时 l3_extend.py 用合成数据冒烟，"
+        "并在 workspace/report.html 标明这不是作品结论。\n",
+        encoding="utf-8")
 
     print(f"领域深度工作台就绪：{target}")
     print(f"  · L1 {cap['workflow']['title']}")

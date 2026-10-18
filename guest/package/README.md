@@ -155,7 +155,7 @@ removed.
 AI4Science Hackathon: **15 deep field research workbenches** (one menu row
 per judge's domain, each opening a three-level field workbench — L1
 `launchpad.py` offline demo, L2 `l2_advanced.py` standard method, L3
-`l3_extend.py` real-data deepening skeleton — plus field background, real
+`l3_extend.py` real open-data experiment, with a synthetic smoke fallback — plus field background, real
 datasets, references and a roadmap), the `~/science` layout and a 16-page
 capability matrix. The whole 15-field matrix is generated from
 `tools/build-judges.py` (45 runnable scripts, all stdlib or optdepends).

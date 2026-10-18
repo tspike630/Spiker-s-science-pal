@@ -109,6 +109,7 @@ test-contracts:
 
 test-guest:
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/package/tests/test_package.py"
+	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/package/tests/test_research.py"
 
 # The package's contracts with the Spiker's Science Pal the factory installs today.
 test-upstream:

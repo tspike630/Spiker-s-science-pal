@@ -65,7 +65,7 @@ docker run --rm -i --platform linux/arm64 --entrypoint /bin/bash \
     # libfakeroot reports "payload not recognized" for the xattr calls some
     # container filesystems make; the package contents are unaffected.
     runuser -u builder -- env PKGEXT=.pkg.tar.zst makepkg --nodeps --force --noconfirm 2>&1 | grep -v "libfakeroot internal error" >&2
-    rm -f /output/spikers-science-pal-*.pkg.tar.zst
+    rm -f /output/spikers-science-pal-[0-9]*.pkg.tar.zst
     install -m 0644 spikers-science-pal-*.pkg.tar.zst /output/
     ls spikers-science-pal-*.pkg.tar.zst
   ' <"$recipe/recipe.tar"

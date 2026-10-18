@@ -31,7 +31,14 @@ if ((!factory_only)); then
   "$guest_dir/package/build-research.sh" --output "$output/packages"
 fi
 shopt -s nullglob
-packages=("$output"/packages/spikers-science-pal-*.pkg.tar.zst)
+# spikers-science-pal-research-* also matches spikers-science-pal-*, so keep
+# the integration package (version starts with a digit) separate.
+packages=()
+for candidate in "$output"/packages/spikers-science-pal-*.pkg.tar.zst; do
+  name=${candidate##*/}
+  [[ $name == spikers-science-pal-research-* ]] && continue
+  packages+=("$candidate")
+done
 ((${#packages[@]} == 1)) || { echo "guest/build.sh: expected one spikers-science-pal package" >&2; exit 1; }
 research=("$output"/packages/spikers-science-pal-research-*.pkg.tar.zst)
 if ((${#research[@]} == 0)) && ((factory_only)); then

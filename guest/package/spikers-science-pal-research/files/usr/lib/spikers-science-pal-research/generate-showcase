@@ -123,8 +123,9 @@ def main():
             f"<td><code>python3 launchpad.py</code></td></tr>"
             f"<tr><td>L2 标准方法</td><td>{html.escape(dp['l2']['title'])}</td>"
             f"<td><code>python3 l2_advanced.py</code></td></tr>"
-            f"<tr><td>L3 作品深化</td><td>{html.escape(dp['l3']['title'])}</td>"
-            f"<td><code>python3 l3_extend.py</code></td></tr></table>"
+            f"<tr><td>L3 真实数据</td><td>{html.escape(dp['l3']['title'])}</td>"
+            f"<td><code>bash data/data_fetch.sh &amp;&amp; python3 l3_extend.py</code></td></tr></table>"
+            f"<p class='muted'>结论在 <code>workspace/report.html</code> 与 CSV，断网时同一条管线用合成数据冒烟并标明非作品结论。</p>"
             f"<p class='muted'>目录：<code>~/science/domains/{j['id']}/</code> · "
             f"菜单点该领域直接进入（有 Jupyter 开 Lab，否则打开目录）</p></div>",
             f"<div class='card'><h2>科学背景</h2><p>{html.escape(dp['background'])}</p>"

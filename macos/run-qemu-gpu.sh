@@ -335,6 +335,8 @@ hvf_trace_log=${SPIKERS_QEMU_GPU_HVF_TRACE_LOG:-}
 # names another archive; an empty value turns the offer off.
 bundled_package=""
 for candidate in "$resources_dir"/guest-packages/spikers-science-pal-*.pkg.tar.zst; do
+  name=${candidate##*/}
+  [[ $name == spikers-science-pal-research-* ]] && continue
   [[ -f $candidate ]] && bundled_package=$candidate
 done
 package_to_install=${SPIKERS_SHELL_INSTALL_PACKAGE-$bundled_package}

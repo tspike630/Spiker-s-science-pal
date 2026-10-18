@@ -921,7 +921,8 @@ invited judge's domain:
 - **菜单即功能**：`judges.01-ma-weiying` … `judges.15-liu-gang` each open that
   field's deep research environment (`~/science/domains/<id>/`): a three-level
   workbench — `launchpad.py` (L1 offline demo), `l2_advanced.py` (L2 standard
-  method), `l3_extend.py` (L3 real-data + deepening skeleton) plus notebooks,
+  method), `l3_extend.py` (L3 real open-data experiment; synthetic smoke run
+  when `data/raw/` is empty) plus notebooks,
   field background, real datasets, references and a roadmap in README.md,
   opened in Jupyter Lab when available.
 - **科研工作台**：`~/science/{projects,notes,data,domains,exports,statements}`

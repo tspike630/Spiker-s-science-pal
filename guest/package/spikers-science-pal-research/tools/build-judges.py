@@ -4,16 +4,25 @@
 Each judge carries a `capabilities` block: a field workbench with
   workflow   — L1 launchpad: offline-runnable, pure-stdlib demo (run today)
   deep.l2    — L2 advanced: a more complete, standard-method implementation
-  deep.l3    — L3 extend: real-data access + deepening skeleton for the entry
+  deep.l3    — L3 extend: real open data, with a synthetic smoke fallback
   deep.background / datasets / references / roadmap — the science behind it
 The domain launcher (spikers-science-pal-domain) materialises all of it into
 ~/science/domains/<id>/ (README + launchpad.py + l2_advanced.py + l3_extend.py
-+ matching notebooks).
++ matching notebooks + data/data_fetch.sh).
+
+L3 bodies live in tools/l3_bodies.py and are wired in here so judges.json
+stays the single packaged source. Edit a judge's name or field in the
+JUDGES table below; edit that field's experiment in l3_bodies.py.
 
 Rebuild with:  python3 tools/build-judges.py > files/usr/share/spikers-science-pal-research/judges.json
 """
 
 import json
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from l3_bodies import L3
 
 def cap(title, intro, tools, workflow_title, workflow_code, workflow_note, deep, pip=()):
     return {
@@ -25,14 +34,17 @@ def cap(title, intro, tools, workflow_title, workflow_code, workflow_note, deep,
         "deep": deep,
     }
 
-def deep(background, datasets, references, roadmap, l2_title, l2_code, l2_note, l3_title, l3_code, l3_note):
+def deep(background, datasets, references, roadmap, l2_title, l2_code, l2_note, l3_title, l3_code, l3_note, l3_fetch=""):
+    l3 = {"title": l3_title, "code": l3_code, "note": l3_note}
+    if l3_fetch:
+        l3["data_fetch"] = l3_fetch
     return {
         "background": background,
         "datasets": datasets,
         "references": references,
         "roadmap": roadmap,
         "l2": {"title": l2_title, "code": l2_code, "note": l2_note},
-        "l3": {"title": l3_title, "code": l3_code, "note": l3_note},
+        "l3": l3,
     }
 
 # ---------------------------------------------------------------------------
@@ -156,33 +168,10 @@ for k, g in enumerate(groups):
     print(f"          " + "; ".join(docs[i][:44] for i in g[:3]))
 ''',
     "k-means++ 初始化避免局部最优；主题词=簇中心权重最高的词；簇质量可用轮廓系数评估。",
-        "真实文献情报管线（arXiv → 向量 → 主题地图 → 选题简报）",
-        '''
-# L3：真实数据接入与作品深化骨架
-# 目标：把 demo 升级成『选题情报简报』，直接支撑你的参赛作品。
-#
-# 1) 拉取真实文献（示例，替换为你的主题）：
-#    curl "http://export.arxiv.org/api/query?search_query=all:%22AI4Science%22&max_results=50" -o arxiv.xml
-#    解析 <title> 得到 docs；或用 Semantic Scholar / OpenAlex API。
-#
-# 2) 把 L2 的主题聚类接到真实 docs 上（去掉下面示例占位）：
-docs = [
-    "AI for Science: the frontier of artificial intelligence in scientific discovery",
-    "Scientific discovery in the age of artificial intelligence",
-    "Machine learning for molecular and materials science",
-]
-#
-# 3) 评估与输出：
-#    - 每簇输出 5 篇代表文献 + 关键词，写进 ~/science/showcase/
-#    - 用 L2 的 k-means++ 跑 k=4..8，对比簇质量，选稳定解
-#    - 关键检验：你的选题在文献地图上是否处于『前沿且有空间』的位置
-#
-# 4) 沉淀：结果写 ~/science/notes/ 与 ~/science/exports/，作为作品『选题依据』章节。
-print("L3 扩展计划（真实文献情报管线）：")
-for step in ["拉取 arXiv/OpenAlex 数据", "真实 TF-IDF + 主题聚类", "文献地图与选题定位", "写入作品包『选题依据』"]:
-    print("  -", step)
-''',
-        "用真实数据后，主题地图就是答辩里『为什么做这个选题』的证据。"),
+        L3["01-ma-weiying"]["title"],
+        L3["01-ma-weiying"]["code"],
+        L3["01-ma-weiying"]["note"],
+        L3["01-ma-weiying"]["data_fetch"]),
     pip=("pandas", "scikit-learn"),
 )
 
@@ -290,29 +279,10 @@ chi = (O - E)**2 / V if V > 0 else float("inf")
 print(f"log-rank: O={O} E={E:.1f} χ²={chi:.1f} p≈{math.exp(-chi/2):.4f}（近似，真实用卡方分布）")
 ''',
     "删失数据、中位生存时间与事件驱动的 χ² 都是临床论文的标准报告项；lifelines 可给出精确 p 值。",
-        "真实队列预后分析（AI 风险分层 → KM 验证）",
-        '''
-# L3：真实临床数据与 AI 预后验证骨架
-# 目标：把生存分析接进你的 AI 作品——『模型预测的风险分层必须有 KM 证据』。
-#
-# 1) 数据：TCGA（portal.gdc.cancer.gov）下载生存文件 + 你的特征；
-#    或公开生存数据集（如 survsim / lifelines 内置 rossi 数据集）。
-#    格式：每行 (time, event, feature_1..feature_k)。
-#
-# 2) 方法链：
-#    - 训练风险模型（sklearn 的 GradientBoosting / Cox-PH via lifelines）
-#    - 按预测风险中位数分成高低两组
-#    - 用本目录 L1/L2 的 KM + log-rank 验证两组生存差异显著
-#
-# 3) 输出（进作品包）：
-#    - KM 曲线图（高低风险组），标注 log-rank p 值
-#    - 模型 C-index 与临床基线对比
-#    - 一句话结论：AI 分层是否带来临床可用的生存区分
-print("L3 扩展计划（AI 预后验证闭环）：")
-for step in ["下载 TCGA/公开队列", "训练风险模型 + 风险分层", "KM/log-rank 验证显著性", "C-index 与临床基线对比"]:
-    print("  -", step)
-''',
-        "『AI 预测 → 生存验证』闭环是临床 AI 作品说服力的关键，也是医学评委最看重的部分。"),
+        L3["02-yan-jun"]["title"],
+        L3["02-yan-jun"]["code"],
+        L3["02-yan-jun"]["note"],
+        L3["02-yan-jun"]["data_fetch"]),
     pip=("lifelines", "scipy"),
 )
 
@@ -417,30 +387,10 @@ print(f"单模态视觉: {knn_acc(pv):.2%}（基线）")
 print("方法学点：融合方式本身是超参数，要在验证集上选，不能只看训练集。")
 ''',
     "展示『怎么融合』与『融合多少』同样重要；真实项目中用注意力门控融合替代手工权重。",
-        "真实多模态数据集上的端到端对比",
-        '''
-# L3：真实多模态数据与作品深化骨架
-# 目标：把融合收益验证搬到真实数据上，成为作品的核心实验。
-#
-# 1) 数据选择（任选其一）：
-#    - 图文：COCO Captions（图片 + 5 条标题）→ 视觉 CNN 特征 + 文本 BERT 特征
-#    - 医疗：影像 + 结构化报告（公开的 CheXpert / MIMIC-CXR）
-#    - 科学：论文图 + 摘要（arXiv）
-#    有 GPU 时可装 torch；无 GPU 先用 sklearn 的 PCA/NMF 特征。
-#
-# 2) 实验矩阵（写进作品）：
-#    | 模态 | 表示 | 分类准确率 | 备注 |
-#    | 视觉 | ResNet 特征 | ... | |
-#    | 文本 | TF-IDF | ... | |
-#    | 拼接 | ... | ... | |
-#    | 注意力融合 | ... | ... | |
-#
-# 3) 检查点：融合必须显著 > 单模态（配置信区间），否则要说明为什么。
-print("L3 扩展计划（真实多模态实验）：")
-for step in ["选择数据集与特征", "实现 2-3 种融合", "交叉验证 + 置信区间", "融合收益图表进作品"]:
-    print("  -", step)
-''',
-        "一张『融合收益对比图』比任何文字都更能说服评委。"),
+        L3["03-xu-kaidi"]["title"],
+        L3["03-xu-kaidi"]["code"],
+        L3["03-xu-kaidi"]["note"],
+        L3["03-xu-kaidi"]["data_fetch"]),
     pip=("scikit-learn",),
 )
 
@@ -528,29 +478,10 @@ while len(active) > 1:
     print(f"合并 {a} 与 {b} → {len(merged)} 条序列（聚类距离 {cluster_dist(merged[:len(active[a])] if False else merged, merged):.3f}）")
 ''',
     "UPGMA 给出无根树拓扑：A/B 最接近（同源最近），与功能分组的直觉一致；真实分析用 Biopython 的 Phylo。",
-        "真实蛋白家族分析（UniProt → 聚类/嵌入 → 突变案例）",
-        '''
-# L3：真实蛋白家族分析与作品深化骨架
-# 目标：把序列分析升级成有生物学结论的小研究。
-#
-# 1) 拉真实序列：
-#    curl "https://rest.uniprot.org/uniprotkb/stream?query=family:%22kinase%22&format=fasta" -o kinases.fasta
-#    或从 UniProt 网页导出你感兴趣的家族。
-#
-# 2) 分析链：
-#    - 解析 fasta → 组成/二肽/进化距离（L1/L2 已有实现）
-#    - 聚类 → 家族亚群；对照已知功能注释（UniProt 的 GO 条目）
-#    - 可选：装 biopython 做多序列比对（ClustalW/MAFFT）与系统树
-#    - 可选：ESM 嵌入（torch）对比语言模型特征 vs 经典特征
-#
-# 3) 作品亮点候选：
-#    - 『轻量级蛋白功能注释』：不需要大模型，纯特征即可复现家族分组
-#    - 突变效应案例：挑一个已知致病突变，看序列特征如何捕捉差异
-print("L3 扩展计划（真实蛋白家族分析）：")
-for step in ["UniProt 拉取家族序列", "特征聚类 vs 功能注释", "可选 ESM 嵌入对比", "突变案例 + 结论"]:
-    print("  -", step)
-''',
-        "『特征分析就能复现生物学分组』是生物信息作品最扎实的起步证据。"),
+        L3["04-miao-ning"]["title"],
+        L3["04-miao-ning"]["code"],
+        L3["04-miao-ning"]["note"],
+        L3["04-miao-ning"]["data_fetch"]),
     pip=("biopython",),
 )
 
@@ -656,28 +587,10 @@ for n, wi in zip(names, w): print(f"  {n}: {wi:+.3f}")
 print("排序：" + " > ".join(names[i] for i in sorted(range(3), key=lambda i: -abs(w[i]))))
 ''',
     "R² 与特征重要性是材料 ML 论文的标准报告；留一法在小样本上最诚实。",
-        "真实材料筛选（Catalysis-Hub 数据 → 描述符回归 → Top10 候选）",
-        '''
-# L3：真实材料筛选管线骨架
-# 目标：从演示到『可复现的材料筛选结果』。
-#
-# 1) 数据：Catalysis-Hub（catalysis-hub.org）下载吸附能数据（如 *OH/*O 在不同金属表面），
-#    或 Materials Project API（需免费 key）拉成分/带隙/形成能。
-#    字段示例：surface, adsorbate, dband_center, coordination, E_ads
-#
-# 2) 模型链（接 L2 实现）：
-#    - 描述符 → 活性 回归（R² 报告）
-#    - 对未计算表面做预测 → 排序
-#    - 输出 Top10 候选材料表 + 关键依据（d 带中心偏离最优点多少）
-#
-# 3) 作品亮点：
-#    - 火山曲线复现图（横轴描述符，纵轴活性，你的预测点叠上去）
-#    - 『我们筛出的材料里，哪个已被实验验证过』→ 对照文献，展示可解释性
-print("L3 扩展计划（材料筛选闭环）：")
-for step in ["下载催化吸附数据", "描述符回归 + R²", "外推预测 Top10 候选", "对照文献验证候选"]:
-    print("  -", step)
-''',
-        "『预测 → 文献验证』闭环是材料 AI 作品最有说服力的呈现。"),
+        L3["05-wang-zhenbin"]["title"],
+        L3["05-wang-zhenbin"]["code"],
+        L3["05-wang-zhenbin"]["note"],
+        L3["05-wang-zhenbin"]["data_fetch"]),
     pip=("scikit-learn",),
 )
 
@@ -774,29 +687,10 @@ for idx, fr in enumerate(frames_of(sig)):
 print("VAD 依据：能量 + 过零率联合阈值 → 语音段/非语音段。")
 ''',
     "逐帧判读把『听』变成『表格』；VAD 是语音前端的第一道工序。",
-        "真实语音分析（LibriSpeech → 特征 → 语音任务）",
-        '''
-# L3：真实语音分析与作品深化骨架
-# 目标：把特征管线接到真实语音上，支撑语音类作品。
-#
-# 1) 下载真实语音：
-#    wget https://www.openslr.org/resources/12/dev-clean.tar.gz（LibriSpeech 开发集）
-#    或 Common Voice 的 mp3 样本。
-#
-# 2) 读 wav：标准 wav 用 python 标准库 struct 解析（参考 L1 的写出逻辑反向解析）；
-#    有 librosa 时直接 librosa.load()。
-#
-# 3) 实验链：
-#    - 基频曲线 + VAD 分段 → 语音活性统计
-#    - 特征 → 轻量分类（说话人/情感/语种），sklearn 即可
-#    - 对比 Mel 频谱特征 vs 手工特征
-#
-# 4) 作品亮点：『不依赖大模型的轻量语音分析』或『特征可视化解释 ASR 前端』
-print("L3 扩展计划（真实语音管线）：")
-for step in ["下载 LibriSpeech/CommonVoice", "真实 wav 特征提取", "语音分类基线", "特征可视化进作品"]:
-    print("  -", step)
-''',
-        "音频特征可视化（基频/能量曲线）是答辩里最有直观冲击力的图表之一。"),
+        L3["06-wang-li"]["title"],
+        L3["06-wang-li"]["code"],
+        L3["06-wang-li"]["note"],
+        L3["06-wang-li"]["data_fetch"]),
     pip=("librosa",),
 )
 
@@ -893,30 +787,10 @@ for k, v in sorted(od.items(), key=lambda kv: -kv[1])[:3]:
 print("解读：速度剖面识别拥堵/绕行；OD 热点 = 城市功能中心。")
 ''',
     "速度分位数 + OD 频次是城市流动研究的基础统计；可平滑扩展为真实数据集上的 OD 矩阵。",
-        "真实轨迹数据（GeoLife/NYC）→ 停留-OD-流量预测",
-        '''
-# L3：真实时空数据管线骨架
-# 目标：从合成轨迹到真实城市的可复现分析。
-#
-# 1) 数据：
-#    - GeoLife：微软研究院下载，格式 (lat, lon, alt, date)
-#    - NYC Taxi：parquet/csv，含 pickup/dropoff 经纬度
-#
-# 2) 管线（复用 L1/L2 的算法）：
-#    - 轨迹清洗（漂移点、时间戳对齐）→ 停留点 → OD
-#    - 空间网格化（500m×500m）→ OD 矩阵
-#    - 时间维度：分小时/星期 → 城市动态曲线
-#
-# 3) 预测任务（作品核心可选）：
-#    - 区域流量预测：历史 OD → 下一小时流量（线性基线 vs 简单图模型）
-#    - 职住识别：稳定停留点 → 家/工作分类
-#
-# 4) 输出：OD 热力图 + 流量曲线 + 结论 → ~/science/exports/
-print("L3 扩展计划（真实时空分析）：")
-for step in ["下载 GeoLife/NYC", "轨迹清洗与停留点", "OD 矩阵与热点", "流量预测 + 可视化"]:
-    print("  -", step)
-''',
-        "城市流动可视化是智慧城市作品的第一眼冲击力。"),
+        L3["07-guo-xingyu"]["title"],
+        L3["07-guo-xingyu"]["code"],
+        L3["07-guo-xingyu"]["note"],
+        L3["07-guo-xingyu"]["data_fetch"]),
     pip=("geopandas", "osmnx"),
 )
 
@@ -1015,28 +889,10 @@ ident = sum(1 for x, y in zip(al, bl) if x == y) / len(al)
 print(f"保守区一致性: {ident:.1%}（高一致性区段 = 功能关键区）")
 ''',
     "局部比对找保守功能域；真实项目用 BLAST（biopython 封装）对全库搜索。",
-        "真实药物筛选（ChEMBL → 指纹富集 → QSAR 基线）",
-        '''
-# L3：真实药物研发管线骨架
-# 目标：把比对/筛选升级成可复现的药物发现小实验。
-#
-# 1) 数据：ChEMBL API（www.ebi.ac.uk/chembl/api/data）按靶点拉活性数据：
-#    curl "https://www.ebi.ac.uk/chembl/api/data/activity?target_chembl_id=CHEMBL1829&limit=50" -o act.json
-#    或下载 CSV。字段：smiles, pIC50, target。
-#
-# 2) 管线：
-#    - SMILES → 指纹（L1 实现或 RDKit）
-#    - 相似性富集：已知活性分子为种子，测库中相似分子的活性命中率
-#    - QSAR：指纹 → pIC50 回归（L2 的岭回归/留一法现成）
-#
-# 3) 作品亮点：
-#    - 『轻量虚拟筛选复现已知抑制剂』
-#    - 预测新分子活性 Top 名单 + 与 ChEMBL 已知活性对照
-print("L3 扩展计划（真实筛选管线）：")
-for step in ["ChEMBL 拉取靶点活性", "指纹 + 相似性富集", "QSAR 回归 + 验证", "新分子预测 Top 名单"]:
-    print("  -", step)
-''',
-        "『虚拟筛选命中率』是可量化、可对照文献的作品指标。"),
+        L3["08-zhang-yuying"]["title"],
+        L3["08-zhang-yuying"]["code"],
+        L3["08-zhang-yuying"]["note"],
+        L3["08-zhang-yuying"]["data_fetch"]),
     pip=("rdkit",),
 )
 
@@ -1118,29 +974,10 @@ for name, meth, it in [("梯度下降", gd_step, 120), ("割线法", secant, 12)
     print(f"{name:8s} 末误差 {errs[-1]:.2e}  收敛阶≈{order:.2f}（1=线性，2=二次）")
 ''',
     "收敛阶的数值估计把『快』变成可测的数学量；这是数值优化论文的标准分析。",
-        "优化器实证（多测试函数 + 收敛阶 + 工程启示）",
-        '''
-# L3：优化器实证与作品深化骨架
-# 目标：用可复现实验支持作品里的每个方法选择。
-#
-# 1) 测试函数集：Rosenbrock、Beale、Rastrigin（可查公式，纯 python 实现）
-#    + 你的模型训练损失曲线（真实数据）。
-#
-# 2) 实验矩阵：
-#    | 优化器 | 函数 | 迭代数 | 末误差 | 收敛阶 |
-#    | GD | Rosenbrock | ... | ... | ... |
-#    | 牛顿 | ... | ... | ... | ... |
-#    | Adam(近似) | ... | ... | ... | ... |
-#
-# 3) 结论模板：
-#    - 一阶方法稳但慢；二阶方法快但对曲率敏感
-#    - 工程上 Adam 是稳健默认，牛顿法需正则
-#    - 作品模型选择优化器时附上这张表 = 方法学严谨
-print("L3 扩展计划（优化器实证）：")
-for step in ["实现 3-4 个测试函数", "三种优化器收敛对比", "收敛阶与敏感性分析", "结论进作品方法学"]:
-    print("  -", step)
-''',
-        "任何训练类作品的『为什么选这个优化器』都可以用这张表回答。"),
+        L3["09-wang-maolin"]["title"],
+        L3["09-wang-maolin"]["code"],
+        L3["09-wang-maolin"]["note"],
+        L3["09-wang-maolin"]["data_fetch"]),
     pip=("sympy",),
 )
 
@@ -1263,29 +1100,10 @@ print("从最高 PR 节点传播：峰值感染/最终恢复 =", sir(rank[0]))
 print("从最高度节点传播：峰值感染/最终恢复 =", sir(sorted(range(n), key=lambda i: -len(out_adj[i]))[0]))
 ''',
     "PageRank 与传播模拟一起回答『选谁做种子影响力最大』——影响力最大化的核心。",
-        "真实社交网络分析（SNAP → 影响力/社区 → 图表示）",
-        '''
-# L3：真实网络分析与作品深化骨架
-# 目标：把图算法接到真实数据，产出可验证结论。
-#
-# 1) 数据：SNAP（snap.stanford.edu/data/）下载
-#    - soc-Facebook / ego-Facebook（好友网络）
-#    - cit-HepTh（引文网络，节点=论文，边=引用）
-#    格式：每行 "u v"。
-#
-# 2) 管线：
-#    - 解析 → 度/介数/PageRank（复用 L1/L2 算法）
-#    - 社区发现 → 与论文主题/机构对照
-#    - 传播模拟 → 找最佳『种子』（影响力最大化近似）
-#
-# 3) 作品亮点：
-#    - 舆情/推荐场景的影响力排序表
-#    - 图嵌入（Node2Vec 或 GCN）做节点分类的对比
-print("L3 扩展计划（真实网络分析）：")
-for step in ["SNAP 下载真实网络", "中心性 + 社区", "传播与影响力最大化", "图表示学习对比"]:
-    print("  -", step)
-''',
-        "『选谁传播最有效』的可复现实验是网络科学作品的高分点。"),
+        L3["10-zheng-xiang"]["title"],
+        L3["10-zheng-xiang"]["code"],
+        L3["10-zheng-xiang"]["note"],
+        L3["10-zheng-xiang"]["data_fetch"]),
     pip=("networkx",),
 )
 
@@ -1397,29 +1215,10 @@ for cut in (0.5, 0.7, 0.85, 0.95):
     print(f"  cut={cut:.2f}: 信号效率 {tpr:.2%} 本底误报率 {fpr:.2%}")
 ''',
     "物理论文报告效率曲线与显著性；Z 值是『发现』的语言（5σ 标准）。",
-        "真实 LHC 数据（CERN Open Data → 分类 → 显著度）",
-        '''
-# L3：真实高能物理分析骨架
-# 目标：在公开碰撞数据上复现『训练 → 效率 → 显著度』闭环。
-#
-# 1) 数据：CERN Open Data（opendata.cern.ch）
-#    - 搜索 "Higgs" 或 "ttbar" 的 ROOT ntuple
-#    - 用 uproot 读取：pip install uproot awkward
-#    - 典型特征：mll, pt_lep, btag, met, njets
-#
-# 2) 管线：
-#    - 特征工程（质量窗口、组合特征）
-#    - 分类器：朴素贝叶斯（L1/L2）→ 随机森林/XGBoost（装包）
-#    - 效率曲线 + Z 值（s/sqrt(b)）
-#
-# 3) 作品亮点：
-#    - 一张 ROC 曲线 + 显著性表
-#    - 与 ATLAS/CMS 已发表效率对比（说明你的简化在合理范围）
-print("L3 扩展计划（真实 LHC 分析）：")
-for step in ["CERN Open Data 下载 ntuple", "uproot 读取 + 特征", "分类 + 效率曲线", "显著性 Z 值报告"]:
-    print("  -", step)
-''',
-        "用公开碰撞数据复现『发现流程』是物理类作品的最高含金量。"),
+        L3["11-chen-weiyu"]["title"],
+        L3["11-chen-weiyu"]["code"],
+        L3["11-chen-weiyu"]["note"],
+        L3["11-chen-weiyu"]["data_fetch"]),
     pip=("uproot", "scikit-learn"),
 )
 
@@ -1539,26 +1338,10 @@ for head in range(2):
         print(f"  头{head+1} token{i}: att {[round(a,2) for a in att]} out {[round(o,2) for o in out]}")
 ''',
     "merge 表就是『词表学习』；多头让不同头捕捉不同关系——工程直觉在此建立。",
-        "LLM 应用工程（分词/推理成本/Agent 对比评估）",
-        '''
-# L3：LLM 应用工程骨架
-# 目标：如果你的作品使用大模型，用工程证据支撑设计。
-#
-# 1) 基线评估：
-#    - 用 transformers 加载一个小模型（如 Qwen2.5-0.5B / Llama-3.2-1B）
-#    - 在你的科学任务上测 3 个提示模板，报告准确率差异
-#
-# 2) Agent 对比（AI4S 常用形态）：
-#    - 裸 LLM vs LLM + 工具调用（Python/检索/数据库）
-#    - 指标：任务成功率、token 成本、延迟
-#    - 表格进作品：工程评委最喜欢可复现的成本/质量权衡
-#
-# 3) 推理优化（可选加分）：量化（bitsandbytes）或 vLLM 部署，报吞吐
-print("L3 扩展计划（LLM 工程评估）：")
-for step in ["小模型 + 3 提示模板评估", "裸模型 vs 工具调用 Agent", "token/延迟成本表", "推理优化实验"]:
-    print("  -", step)
-''',
-        "『我们用了 LLM』必须有评估表支撑——这是工程类评委的评分点。"),
+        L3["12-zhao-yinggong"]["title"],
+        L3["12-zhao-yinggong"]["code"],
+        L3["12-zhao-yinggong"]["note"],
+        L3["12-zhao-yinggong"]["data_fetch"]),
     pip=("transformers",),
 )
 
@@ -1693,28 +1476,10 @@ for y in range(H):
                   + ("（形态规则）" if circ < 1.6 else "（形态不规则）"))
 ''',
     "Otsu 免调参分割 + 形态特征（圆度）是影像论文的基本盘；U-Net 是它的深度版。",
-        "真实医学影像（CheXpert/ISIC → 分割/分类 → 临床指标）",
-        '''
-# L3：真实医学影像管线骨架
-# 目标：把影像管线接到真实数据，产出带临床指标的结论。
-#
-# 1) 数据：
-#    - CheXpert（胸片，需申请）：pip install chexpert-dataloader 或直接下载 CSV+图
-#    - ISIC（皮肤镜，公开下载）
-#    - TCIA（肿瘤 CT/MRI，需注册）
-#
-# 2) 管线：
-#    - 读取（SimpleITK/PIL）→ 归一化 → L1/L2 预处理
-#    - 分割/检测基线；可选 U-Net（torch，若有 GPU）
-#    - 病灶特征 → 良恶性/疾病分类（L2 特征 + sklearn）
-#
-# 3) 临床指标（必须）：DICE、AUC、敏感度/特异度、校准曲线
-#    类别不平衡：报告 PR-AUC 而不是只看准确率
-print("L3 扩展计划（真实影像实验）：")
-for step in ["选择数据集（CheXpert/ISIC）", "预处理 + 分割基线", "特征/模型分类", "DICE/AUC/校准报告"]:
-    print("  -", step)
-''',
-        "临床指标（AUC/校准）是把 demo 变成『诊疗可信』的关键。"),
+        L3["13-wang-yao"]["title"],
+        L3["13-wang-yao"]["code"],
+        L3["13-wang-yao"]["note"],
+        L3["13-wang-yao"]["data_fetch"]),
     pip=("opencv-python-headless",),
 )
 
@@ -1857,28 +1622,10 @@ smooth_path = smooth(astar_path)
 print(f"平滑后关键点: {len(smooth_path)} 个（原 {len(astar_path)} 个）")
 ''',
     "A* 的高效来自启发式——扩展节点数对比是论文标准实验；平滑减少控制点抖动。",
-        "真实导航（占用栅格 → 规划 → 仿真/真机）",
-        '''
-# L3：具身智能深化骨架
-# 目标：从栅格规划走向完整导航/RL 作品。
-#
-# 1) 真实地图：用 SLAM（如 ROS + gmapping / Cartographer）建图，或下载公开 2D 地图转占用栅格
-#    （例如 Robotics 2D maps 数据集）。栅格 = 0/1 占用矩阵，直接喂 L1/L2 的 A*。
-#
-# 2) 增强：
-#    - 动态障碍：DWA/TEB 局部规划（或简化为周期性重规划）
-#    - 不确定性：代价地图膨胀，规避贴墙
-#
-# 3) RL 方向（深度加分）：
-#    - gymnasium 的 FrozenLake / 自定义迷宫，实现 Q-learning → DQN
-#    - 对比『规划器 vs 学习策略』的泛化与样本效率
-#
-# 4) 作品叙事：感知(地图) → 规划(A*) → 控制/学习(RL)，三层闭环
-print("L3 扩展计划（具身智能闭环）：")
-for step in ["真实占用栅格地图", "A*/Dijkstra + 动态重规划", "Q-learning/DQN 学策略", "规划 vs 学习对比"]:
-    print("  -", step)
-''',
-        "『规划器 + 学习』双轨对比是机器人作品的技术纵深。"),
+        L3["14-liu-jiayu"]["title"],
+        L3["14-liu-jiayu"]["code"],
+        L3["14-liu-jiayu"]["note"],
+        L3["14-liu-jiayu"]["data_fetch"]),
     pip=("numpy", "gymnasium"),
 )
 
@@ -1989,29 +1736,10 @@ print(f"峰值频率: {peak_f:.1f} Hz（合成源 α=10Hz，应显著）")
 print("解读：α 占优 = 清醒放松；θ 增强 = 困倦/记忆负荷；β 增强 = 任务专注。")
 ''',
     "频谱功率是脑状态识别（疲劳/专注/癫痫）的核心特征；MNE 提供工业级实现。",
-        "真实 EEG（BCI/PhysioNet → 特征 → 分类/BCI）",
-        '''
-# L3：真实脑电分析与 BCI 骨架
-# 目标：把合成信号升级为真实脑电研究/BCI 作品。
-#
-# 1) 数据：
-#    - BCI Competition IV（运动想象：EEG + 标签，公开注册下载）
-#    - PhysioNet EEG Motor Movement/Imagery（无需注册）
-#    - 格式多为 .edf/.mat：装 mne 读取（pip install mne）
-#
-# 2) 管线（复用 L1/L2）：
-#    - 滤波 → 分段 → 特征（频谱/ERD/熵）
-#    - 分类：LDA/sklearn；运动想象经典特征是 CSP
-#    - 报告：准确率 vs 机会水平（二分类 50%），混淆矩阵
-#
-# 3) 作品亮点：
-#    - 『从原始脑电到分类决策』的完整可复现管道
-#    - 可选：P300 拼写器 demo（ERP 对齐 + 单试次分类）
-print("L3 扩展计划（真实 EEG/BCI）：")
-for step in ["下载 BCI/PhysioNet 数据", "mne 读取与预处理", "特征 + 分类器", "准确率 vs 机会水平"]:
-    print("  -", step)
-''',
-        "『超过机会水平 + 混淆矩阵』是脑机接口作品的可信底线。"),
+        L3["15-liu-gang"]["title"],
+        L3["15-liu-gang"]["code"],
+        L3["15-liu-gang"]["note"],
+        L3["15-liu-gang"]["data_fetch"]),
     pip=("mne",),
 )
 
@@ -2100,7 +1828,7 @@ OVERVIEW = {
   "research": "AI4Science Hackathon · SciencePal 科研虚拟机",
   "menu_label": "科研能力总览 · 15 领域功能矩阵",
   "focus": ("一台虚拟机覆盖 15 个科研领域，每个领域都是一个深度工作台："
-            "L1 开箱演示 → L2 标准方法 → L3 真实数据与作品深化，"
+            "L1 开箱演示 → L2 标准方法 → L3 真实开放数据实验（断网时同一条管线用合成数据冒烟），"
             "含科学背景、真实数据集、参考文献与实验路线。"),
 }
 
