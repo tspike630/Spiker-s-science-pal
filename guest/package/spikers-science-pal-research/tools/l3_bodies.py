@@ -1540,12 +1540,22 @@ for threshold in (0.2, 0.4, 0.5, 0.6, 0.8):
     curve.append(("{:.1f}".format(threshold), "{:.3f}".format(tp / pos), "{:.3f}".format(fp / neg)))
 area = auc(scores, labels)
 # Counting excess at 0.5: predicted signal versus the negative rate.
-predicted_signal = sum(1 for score in scores if score >= 0.5)
-background = sum(1 for label in labels if label == 0) * (predicted_signal / len(scores))
-background = max(background, 1e-6)
-excess = predicted_signal - background
-z_value = excess / math.sqrt(background)
-print("AUC {:.3f}  Z {:.2f}".format(area, z_value))
+signal_scores = [score for score, label in zip(scores, labels) if label == 1]
+background_scores = [score for score, label in zip(scores, labels) if label == 0]
+
+def _mean(values):
+    return sum(values) / len(values) if values else 0.0
+
+def _var(values, center):
+    return sum((value - center) ** 2 for value in values) / (len(values) - 1) if len(values) > 1 else 0.0
+
+mean_s, mean_b = _mean(signal_scores), _mean(background_scores)
+standard_error = math.sqrt(
+    _var(signal_scores, mean_s) / max(len(signal_scores), 1)
+    + _var(background_scores, mean_b) / max(len(background_scores), 1))
+# Separation of the two score means, not a counting-experiment discovery significance.
+z_value = (mean_s - mean_b) / standard_error if standard_error else 0.0
+print("AUC {:.3f}  分数分离 Z {:.2f}".format(area, z_value))
 rows = [("auc", "{:.4f}".format(area))] + [("tpr@{}".format(t), tpr) for t, tpr, _fpr in curve]
 rows.append(("z", "{:.2f}".format(z_value)))
 report("HIGGS 分类", "AUC={:.3f}，Z={:.2f}".format(area, z_value), rows, ["metric", "value"], "roc.csv", real)
