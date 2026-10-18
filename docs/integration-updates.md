@@ -85,3 +85,25 @@ root) to the persistent VM as a read-only virtio disk with serial
 `spikers-previous`, and the package's `spikers-science-pal-import-previous` copies the
 user's files and lists or installs their packages from it. See the
 [README](../README.md#existing-vm-data).
+
+## Where the installer is
+
+`make guest` builds both guest archives and the factory disk. `guest/build.sh`
+passes `spikers-science-pal-*.pkg.tar.zst` and
+`spikers-science-pal-research-*.pkg.tar.zst` to the factory, and
+`guest/factory/build-image.sh` installs those local packages with `pacstrap -U`.
+A disk built from `main2` at `623d584` or later already contains
+`spikers-science-pal-research`. Opening that VM does not need `pacman -U`.
+
+The research archive was built here on 2026-10-18:
+`spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst` (`arch = any`,
+`pkgver = 0.4.0-1`). It lives under `dist/guest/packages/`, which git ignores,
+so that file is not a download link.
+
+This repository has no GitHub Releases and no release tags. The builder that
+produced the archive is x86_64 and cannot run the ARM64 factory container, so
+it did not produce a factory disk or a DMG. `make release` and `make publish`
+still run on Apple Silicon. Until that draft release is published, there is
+no public installer URL.
+
+科研包已构建并预装：预装接线在 `main2` 的 `623d584`。安装包推送位置是该提交的源码，不是一个公开的镜像地址。
