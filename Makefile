@@ -51,7 +51,7 @@ help:
 	  '' \
 	  'Component builds:' \
 	  '  make guest          Ensure dist/guest (spikers-science-pal package and factory disk) is current (Docker)' \
-	  '  make guest-package  Rebuild only the spikers-science-pal package; the next app build bundles it' \
+	  '  make guest-package  Rebuild the integration and research packages; the factory disk installs both' \
 	  '  make runtime        Ensure macos/.build/qemu-gpu-runtime is current' \
 	  '  make firmware       Stage the UEFI firmware from the pinned QEMU source' \
 	  '  make app            Ensure every artifact and the app are current' \
