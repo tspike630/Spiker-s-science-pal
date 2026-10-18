@@ -1,13 +1,13 @@
 # Guest
 
-The guest is a stock generic-`aarch64` Spiker's Science Pal install plus one package. This
+The guest is a stock generic-`aarch64` Spiker's Science Pal install plus two packages. This
 directory builds both:
 
 | Path | Contents |
 | --- | --- |
-| [`package/`](package/README.md) | The `spikers-science-pal` pacman package: every Mac integration in the guest |
+| [`package/`](package/README.md) | The `spikers-science-pal` integration package and the `spikers-science-pal-research` workbench |
 | [`factory/`](factory/README.md) | The factory disk the app ships, built with Spiker's Science Pal's own install steps |
-| `build.sh` | Builds the package, then the factory with the package installed |
+| `build.sh` | Builds both packages, then the factory disk with both installed |
 | `keys/` | Spiker's Science Pal's reviewed repository keys for the builder |
 | `vendor/spikers-pkgs/pacstrap-docker` | A mount-free `pacstrap` for bootstrapping the builder |
 
@@ -15,7 +15,7 @@ From the repository root:
 
 ```sh
 make guest           # dist/guest: the factory disk, its manifest, and packages/
-make guest-package   # only dist/guest/packages/spikers-science-pal-<version>-aarch64.pkg.tar.zst
+make guest-package   # dist/guest/packages/: the integration package and spikers-science-pal-research-*.pkg.tar.zst
 make test-guest      # the package's contract tests
 ```
 

@@ -17,7 +17,6 @@ license=('MIT')
 depends=(
   'spikers-science-pal'
   'python'
-  'python-markdown'
   'xdg-utils'
 )
 install=spikers-science-pal-research.install

@@ -41,13 +41,11 @@ for candidate in "$output"/packages/spikers-science-pal-*.pkg.tar.zst; do
 done
 ((${#packages[@]} == 1)) || { echo "guest/build.sh: expected one spikers-science-pal package" >&2; exit 1; }
 research=("$output"/packages/spikers-science-pal-research-*.pkg.tar.zst)
-if ((${#research[@]} == 0)) && ((factory_only)); then
-  echo "guest/build.sh: spikers-science-pal-research package missing in $output/packages (run guest/package/build-research.sh first)" >&2
+((${#research[@]} == 1)) || {
+  echo "guest/build.sh: expected one spikers-science-pal-research package in $output/packages" >&2
   exit 1
-fi
-((${#research[@]} <= 1)) || echo "guest/build.sh: warning: multiple spikers-science-pal-research packages; using ${research[0]##*/}" >&2
-build_args=(--package "${packages[0]}")
-if ((${#research[@]})); then
-  build_args+=(--package "${research[0]}")
-fi
-"$guest_dir/factory/build-container.sh" --output "$output" "${build_args[@]}"
+}
+# Both packages are installed into the factory disk. The downloaded VM
+# therefore already contains the research workbench; it is not a later pacman step.
+"$guest_dir/factory/build-container.sh" --output "$output" \
+  --package "${packages[0]}" --package "${research[0]}"

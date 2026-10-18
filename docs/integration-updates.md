@@ -6,6 +6,7 @@ Three pieces update on their own schedules:
 | --- | --- | --- |
 | Mac app | DMG ([app updates](app-updates.md)) | The user installs the app |
 | `spikers-science-pal` guest package | Bundled in the app, offered on every boot | Automatic, before login |
+| `spikers-science-pal-research` | Installed in the factory disk a new VM downloads | Already present after the download |
 | Spiker's Science Pal, its Hyprland stack and kernel | Spiker's Science Pal's repositories | `spikers update` in the guest |
 
 Replacing the app never touches a VM's disk. The guest updates itself.

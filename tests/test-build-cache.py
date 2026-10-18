@@ -51,6 +51,7 @@ FAKE_FACTORY = textwrap.dedent(
         ))
         (output / "packages").mkdir(exist_ok=True)
         (output / "packages/spikers-science-pal-0.1.0-1-aarch64.pkg.tar.zst").write_text(label)
+        (output / "packages/spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst").write_text(label + "-research")
     """
 )
 
@@ -259,6 +260,15 @@ class BuildCacheTests(unittest.TestCase):
             self.assertEqual(factory_before, build_cache.fingerprint(root, "guest", factory))
             self.assertNotEqual(package_before, build_cache.fingerprint(root, "guest-package", package))
 
+            # The research workbench is installed into the factory disk, so a
+            # change to it rebuilds the disk. The integration package still does not.
+            research = root / "guest/package/spikers-science-pal-research/files/usr/bin/spikers-science-pal-domain"
+            research.parent.mkdir(parents=True, exist_ok=True)
+            research.write_text("one\n")
+            with_research = build_cache.fingerprint(root, "guest", factory)
+            research.write_text("two\n")
+            self.assertNotEqual(with_research, build_cache.fingerprint(root, "guest", factory))
+
             # What the factory bakes in: the boot image's command line and
             # the dependencies it installs.
             console.write_text("console=hvc0 quiet\n")
@@ -329,7 +339,7 @@ class BuildCacheTests(unittest.TestCase):
 
             namespace["write_fake_factory"](output, "two")
             (package.parent / "spikers-science-pal-0.1.0-2-aarch64.pkg.tar.zst").write_text("second")
-            with self.assertRaisesRegex(build_cache.CacheError, "exactly one spikers-science-pal package"):
+            with self.assertRaisesRegex(build_cache.CacheError, "spikers-science-pal package and the spikers-science-pal-research package"):
                 build_cache.validate_guest(root, None)
 
     def test_app_validation_requires_packaged_icon(self) -> None:

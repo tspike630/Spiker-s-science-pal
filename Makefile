@@ -148,7 +148,7 @@ guest: guest-package
 guest-package:
 	@SPIKERS_FORCE_BUILD="$(FORCE)" "$(BUILD_CACHE)" \
 	  --root "$(ROOT)" --state-dir "$(BUILD_STATE)" guest-package -- \
-	  "$(ROOT)/guest/package/build.sh" --output "$(GUEST_DIST)/packages"
+	  "$(ROOT)/guest/package/build-all.sh" --output "$(GUEST_DIST)/packages"
 
 # Pinned downloads (QEMU and its dependencies' sources, Homebrew bottles) are
 # kept here between builds and checksum-verified on every use.

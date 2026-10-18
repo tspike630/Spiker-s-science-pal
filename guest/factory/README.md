@@ -6,13 +6,14 @@ This directory builds the factory disk the app ships, as described in
 
 The image is a stock generic-`aarch64` Spiker's Science Pal install, built from Spiker's Science Pal's
 own package repositories with upstream's own install steps. Spiker's Science Pal adds
-exactly one package to it, [`spikers-science-pal`](../package/README.md).
+two packages: [`spikers-science-pal`](../package/README.md) and
+`spikers-science-pal-research`. A downloaded VM already has the research workbench.
 
 ```sh
 make guest
 ```
 
-This runs `guest/build.sh`, which builds the `spikers-science-pal` package and then the
+This runs `guest/build.sh`, which builds both packages and then the
 image in a privileged ARM64 container. The output goes to `dist/guest/`:
 
 | File | Contents |
@@ -22,6 +23,7 @@ image in a privileged ARM64 container. The output goes to `dist/guest/`:
 | `packages.txt` | Every installed package and version |
 | `unavailable.txt` | Default-set names the aarch64 repositories do not carry |
 | `packages/spikers-science-pal-*.pkg.tar.zst` | The integration package installed in the image |
+| `packages/spikers-science-pal-research-*.pkg.tar.zst` | The research workbench installed in the image |
 
 The build cache skips the build while the inputs under `guest/` are
 unchanged. `make guest FORCE=1` rebuilds against the repositories' current
@@ -31,7 +33,9 @@ state. Package downloads are cached in a Docker volume labeled
 Lower-level commands:
 
 ```sh
-guest/factory/build-container.sh --output dist/guest --package dist/guest/packages/spikers-science-pal-<version>-aarch64.pkg.tar.zst
+guest/factory/build-container.sh --output dist/guest \
+  --package dist/guest/packages/spikers-science-pal-<version>-aarch64.pkg.tar.zst \
+  --package dist/guest/packages/spikers-science-pal-research-<version>-any.pkg.tar.zst
 guest/factory/build-container.sh --size-gib 24   # a larger virtual disk
 ```
 

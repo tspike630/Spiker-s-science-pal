@@ -86,13 +86,17 @@ def regular_files(
     return sorted(result)
 
 
-# What the factory takes from the guest package beyond installing it: the
-# kernel command line it builds into the boot image. Everything else in the
-# package reaches every VM, new ones included, when the app installs the newer
-# package before first-boot setup, so a package change rebuilds only the
-# package. The factory also installs the package's dependencies; those enter
-# its fingerprint through package_dependencies().
-GUEST_PACKAGE_FACTORY_INPUTS = ("spikers-science-pal/files/etc/limine-entry-tool.d",)
+# The integration package reaches every VM through the app's per-boot offer, so
+# a change to it rebuilds only that package. Two exceptions are baked into the
+# factory disk, which is what a downloaded VM boots:
+#   - the kernel command line in limine-entry-tool.d
+#   - the research workbench, which the app does not offer on later boots
+# The factory also installs both packages' dependencies; those enter its
+# fingerprint through package_dependencies().
+GUEST_PACKAGE_FACTORY_INPUTS = (
+    "spikers-science-pal/files/etc/limine-entry-tool.d",
+    "spikers-science-pal-research",
+)
 
 
 def guest_package_files(root: Path) -> list[Path]:
@@ -104,18 +108,29 @@ def guest_package_files(root: Path) -> list[Path]:
     ] + [root / "LICENSE"]
 
 
-def package_dependencies(root: Path) -> str:
-    """The guest package's depends and optdepends arrays, as written."""
-    try:
-        recipe = (root / "guest/package/spikers-science-pal/PKGBUILD").read_text()
-    except OSError:
-        return "<missing>"
+def _dependency_text(recipe: str) -> str:
     arrays = re.findall(r"^((?:opt)?depends)=\((.*?)\)", recipe, re.M | re.S)
     lines = []
     for name, body in arrays:
         items = re.findall(r"'([^']*)'", body)
         lines.append(name + "=" + " ".join(items))
     return "\n".join(lines)
+
+
+def package_dependencies(root: Path) -> str:
+    """Depends and optdepends of both packages the factory installs."""
+    parts: list[str] = []
+    for relative in (
+        "guest/package/spikers-science-pal/PKGBUILD",
+        "guest/package/spikers-science-pal-research/PKGBUILD",
+    ):
+        try:
+            recipe = (root / relative).read_text()
+        except OSError:
+            parts.append(f"{relative}=<missing>")
+            continue
+        parts.append(relative + "\n" + _dependency_text(recipe))
+    return "\n".join(parts)
 
 
 def component_files(root: Path, component: str) -> list[Path]:
@@ -299,17 +314,35 @@ def direct_file_set(directory: Path) -> set[str]:
     return result
 
 
-def guest_package(directory: Path) -> Path:
+INTEGRATION_PACKAGE = re.compile(
+    r"spikers-science-pal-[0-9][A-Za-z0-9._+-]*-(aarch64|any)\.pkg\.tar\.zst"
+)
+RESEARCH_PACKAGE = re.compile(
+    r"spikers-science-pal-research-[0-9][A-Za-z0-9._+-]*-any\.pkg\.tar\.zst"
+)
+
+
+def guest_packages(directory: Path) -> tuple[Path, Path]:
+    """The integration package and the research package the factory installs."""
     packages = directory / "packages"
     if not packages.is_dir() or packages.is_symlink():
         raise CacheError("guest package directory is missing or unsafe")
     names = direct_file_set(packages)
-    if len(names) != 1 or not re.fullmatch(r"spikers-science-pal-[0-9][A-Za-z0-9._+-]*-(aarch64|any)\.pkg\.tar\.zst", next(iter(names))):
-        raise CacheError("guest package directory must hold exactly one spikers-science-pal package")
-    package = packages / next(iter(names))
-    if package.is_symlink():
+    integration = [name for name in names if INTEGRATION_PACKAGE.fullmatch(name)]
+    research = [name for name in names if RESEARCH_PACKAGE.fullmatch(name)]
+    if len(names) != 2 or len(integration) != 1 or len(research) != 1:
+        raise CacheError(
+            "guest package directory must hold the spikers-science-pal package and the spikers-science-pal-research package"
+        )
+    integration_path = packages / integration[0]
+    research_path = packages / research[0]
+    if integration_path.is_symlink() or research_path.is_symlink():
         raise CacheError("guest package is unsafe")
-    return package
+    return integration_path, research_path
+
+
+def guest_package(directory: Path) -> Path:
+    return guest_packages(directory)[0]
 
 
 def guest_snapshot(directory: Path) -> dict[str, dict[str, int]]:
@@ -491,8 +524,11 @@ def validate_guest_package(root: Path, previous: dict[str, Any] | None) -> dict[
     directory = root / "dist/guest"
     if not directory.is_dir() or directory.is_symlink():
         raise CacheError("guest artifact directory is missing or unsafe")
-    package = guest_package(directory)
-    snapshot = {package.name: sha256_file(package)}
+    integration, research = guest_packages(directory)
+    snapshot = {
+        integration.name: sha256_file(integration),
+        research.name: sha256_file(research),
+    }
     if previous is not None and previous.get("outputs") != snapshot:
         raise CacheError("guest package changed since the successful build")
     return snapshot

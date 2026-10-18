@@ -151,7 +151,7 @@ removed.
 
 ## Research package
 
-`spikers-science-pal-research/` is a second, optional package for the
+`spikers-science-pal-research/` is the research workbench for the
 AI4Science Hackathon: **15 deep field research workbenches** (one menu row
 per judge's domain, each opening a three-level field workbench — L1
 `launchpad.py` offline demo, L2 `l2_advanced.py` standard method, L3
@@ -159,9 +159,9 @@ per judge's domain, each opening a three-level field workbench — L1
 datasets, references and a roadmap), the `~/science` layout and a 16-page
 capability matrix. The whole 15-field matrix is generated from
 `tools/build-judges.py` (45 runnable scripts, all stdlib or optdepends).
-Build it with `build-research.sh`; install it in the VM with
-`sudo pacman -U spikers-science-pal-research-*.pkg.tar.zst`. Its rows join the
-same user menu extension (keys `workbench.*` and `judges.*`) — see its
+`make guest` installs this package into the factory disk, so a downloaded VM
+already has it. `build-all.sh` builds it next to the integration package.
+Its rows join the same user menu extension (keys `workbench.*` and `judges.*`) — see its
 [README](spikers-science-pal-research/README.md).
 
 ## Boot console
