@@ -912,6 +912,32 @@ Spiker's Science Pal is pre-1.0 and under active development. Spiker's Science P
 
 Report ordinary bugs through [GitHub Issues](https://github.com/tspike630/Spiker-s-science-pal/issues). Report suspected vulnerabilities using the private process in [`SECURITY.md`](SECURITY.md), not a public issue.
 
+## Research edition（科研版）
+
+For the AI4Science Hackathon, `guest/package/spikers-science-pal-research` adds
+**15 deep field research workbenches** on top of the base package — one per
+invited judge's domain:
+
+- **菜单即功能**：`judges.01-ma-weiying` … `judges.15-liu-gang` each open that
+  field's deep research environment (`~/science/domains/<id>/`): a three-level
+  workbench — `launchpad.py` (L1 offline demo), `l2_advanced.py` (L2 standard
+  method), `l3_extend.py` (L3 real open-data experiment; synthetic smoke run
+  when `data/raw/` is empty) plus notebooks,
+  field background, real datasets, references and a roadmap in README.md,
+  opened in Jupyter Lab when available.
+- **科研工作台**：`~/science/{projects,notes,data,domains,exports,statements}`
+  seeded on first use; the menu gains 评委导览 / 新建实验记录 / 文献库 (Zotero) /
+  Jupyter Lab / 科研工作台目录 / 作品包·导出 rows.
+- **能力矩阵页**：`judges.overview` opens the 16-page function map (each
+  field page shows the full L1/L2/L3 table, datasets and roadmap) on
+  `127.0.0.1:8765` (forward port 8765 in the app for the Mac's browser).
+
+Source of truth for all 15 fields is
+`guest/package/spikers-science-pal-research/tools/build-judges.py` (45
+runnable scripts, all stdlib or optdepends). Build with
+`guest/package/build-research.sh`; see
+`guest/package/spikers-science-pal-research/README.md`.
+
 ## License
 
 [MIT](LICENSE) - Created by [Eduardo Martinez](https://x.com/martiano)

@@ -1,0 +1,12 @@
+[Unit]
+Description=Spiker's Science Pal research showcase (judge guide site, 127.0.0.1 only)
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/spikers-science-pal-showcase-server
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

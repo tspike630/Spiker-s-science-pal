@@ -1,0 +1,10 @@
+#!/bin/bash
+# Seed the research workbench (~/science) and inject the research menu rows,
+# once per user at every graphical login. Runs after the base package's
+# user-setup so both menu-entries scripts never race on the same file.
+# Idempotent; a user's later edits stay.
+
+set -euo pipefail
+
+"${SPIKERS_SCIENCE_PAL_RESEARCH_INIT:-/usr/bin/spikers-science-pal-research-init}" || true
+"${SPIKERS_SCIENCE_PAL_RESEARCH_MENU_ENTRIES:-/usr/lib/spikers-science-pal-research/menu-entries}" || true

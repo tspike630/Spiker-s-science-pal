@@ -149,6 +149,21 @@ switcher offers it beside the theme's own backgrounds. Spiker's Science Pal's de
 current background stay as they are, and a link the user removes stays
 removed.
 
+## Research package
+
+`spikers-science-pal-research/` is a second, optional package for the
+AI4Science Hackathon: **15 deep field research workbenches** (one menu row
+per judge's domain, each opening a three-level field workbench — L1
+`launchpad.py` offline demo, L2 `l2_advanced.py` standard method, L3
+`l3_extend.py` real open-data experiment, with a synthetic smoke fallback — plus field background, real
+datasets, references and a roadmap), the `~/science` layout and a 16-page
+capability matrix. The whole 15-field matrix is generated from
+`tools/build-judges.py` (45 runnable scripts, all stdlib or optdepends).
+Build it with `build-research.sh`; install it in the VM with
+`sudo pacman -U spikers-science-pal-research-*.pkg.tar.zst`. Its rows join the
+same user menu extension (keys `workbench.*` and `judges.*`) — see its
+[README](spikers-science-pal-research/README.md).
+
 ## Boot console
 
 `/etc/limine-entry-tool.d/50-spikers-science-pal-console.conf` adds `console=hvc0`

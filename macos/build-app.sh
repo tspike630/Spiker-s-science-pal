@@ -290,7 +290,14 @@ done
 # The spikers-science-pal package the launcher offers the guest on every boot.
 mkdir -p "$contents/Resources/guest-packages"
 shopt -s nullglob
-packages=("$guest_packages"/spikers-science-pal-*.pkg.tar.zst)
+packages=()
+for candidate in "$guest_packages"/spikers-science-pal-*.pkg.tar.zst; do
+  name=${candidate##*/}
+  # The research workbench is installed in the factory image, not offered as
+  # the per-boot integration update.
+  [[ $name == spikers-science-pal-research-* ]] && continue
+  packages+=("$candidate")
+done
 shopt -u nullglob
 ((${#packages[@]} == 1)) || {
   echo "build-app: expected exactly one spikers-science-pal package in $guest_packages" >&2

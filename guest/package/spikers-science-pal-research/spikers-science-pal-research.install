@@ -1,0 +1,20 @@
+# Research menu rows and the ~/science workbench are enabled through presets on
+# first install; later upgrades keep the administrator's choices. Runs in the
+# user manager at every graphical login (spikers-science-pal-research-session),
+# after the base package's own session setup.
+
+_user_units='spikers-science-pal-research-session.service spikers-science-pal-showcase.service'
+
+post_install() {
+  systemctl --global preset $_user_units >/dev/null 2>&1 || true
+}
+
+pre_remove() {
+  systemctl --global disable $_user_units >/dev/null 2>&1 || true
+}
+
+post_upgrade() {
+  # A unit added in a later release is enabled here, by name, the first time
+  # an upgrade brings it (systemctl preset <unit>).
+  systemctl --global preset spikers-science-pal-research-session.service >/dev/null 2>&1 || true
+}

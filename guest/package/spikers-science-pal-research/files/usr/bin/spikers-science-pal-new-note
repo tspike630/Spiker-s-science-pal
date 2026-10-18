@@ -1,0 +1,36 @@
+#!/bin/bash
+# Create a dated experiment note under ~/science/notes and open it for
+# editing when run from a terminal (the menu runs it in one).
+
+set -euo pipefail
+
+home=${HOME:?}
+science=${SCIENCE_ROOT:-"$home/science"}
+notes="$science/notes"
+mkdir -p "$notes"
+
+title=${1:-experiment}
+slug=$(printf '%s' "$title" | sed -e 's/[^A-Za-z0-9]/-/g' | tr 'A-Z' 'a-z' | sed -e 's/-\+/-/g' -e 's/^-//' -e 's/-$//')
+file="$notes/$(date +%Y-%m-%d)-${slug:-experiment}.md"
+
+if [[ ! -e $file ]]; then
+  cat >"$file" <<EOF
+# 实验记录：$title
+日期：$(date +%Y-%m-%d)
+
+## 目的（Hypothesis）
+
+## 方法
+
+## 结果
+
+## 遇到的问题
+
+## 下一步
+EOF
+fi
+
+echo "$file"
+if [[ -t 0 && -n ${EDITOR:-} ]]; then
+  exec "$EDITOR" "$file"
+fi
