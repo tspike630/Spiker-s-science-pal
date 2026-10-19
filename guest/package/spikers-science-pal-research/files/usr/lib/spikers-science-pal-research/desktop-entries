@@ -53,10 +53,20 @@ def main():
         return 1
     directory = applications_dir()
     directory.mkdir(parents=True, exist_ok=True)
-    live = {"overview"}
+    live = {"overview", "engine", "sciencepal"}
     write_if_changed(
         directory / "spikers-science-pal-research-overview.desktop",
         desktop_text("overview", "科研", "15 个领域，点开一个再做", ["科研", "science", "research"]))
+    write_if_changed(
+        directory / "spikers-science-pal-research-engine.desktop",
+        desktop_text("engine", " Spiker 科研引擎", "应用1 · 输入科研目的", ["科研引擎", "engine"]).replace(
+            "Exec=spikers-science-pal-research-app engine",
+            "Exec=spikers-science-pal-engine"))
+    write_if_changed(
+        directory / "spikers-science-pal-research-sciencepal.desktop",
+        desktop_text("sciencepal", " SciencePal 平台", "应用2 · 打开 sciencepal.ai", ["SciencePal", "平台"]).replace(
+            "Exec=spikers-science-pal-research-app sciencepal",
+            "Exec=spikers-science-pal-sciencepal"))
     for judge in data["judges"]:
         live.add(judge["id"])
         name = "科研 · " + fields.label(judge)

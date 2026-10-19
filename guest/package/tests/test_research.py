@@ -109,6 +109,11 @@ class ResearchPackage(unittest.TestCase):
             self.assertIn("spikers-science-pal-research-app 05-wang-zhenbin",
                           data["research.05-wang-zhenbin"]["action"])
             self.assertEqual(data["research.overview"]["action"], "spikers-science-pal-domain overview")
+            self.assertEqual(data["engine"]["label"], "Spiker 科研引擎")
+            self.assertEqual(data["engine"]["action"], "spikers-science-pal-engine")
+            self.assertIn("sciencepal.ai", data["sciencepal"]["description"])
+            self.assertLess(text.find('"engine"'), text.find('"research"'))
+            self.assertLess(text.find('"sciencepal"'), text.find('"research"'))
             before = text
             subprocess.run(["python3", str(script)], env=env, check=True)
             self.assertEqual(before, (home / ".config/omarchy/extensions/omarchy-menu.jsonc").read_text())
@@ -235,7 +240,7 @@ class ResearchPackage(unittest.TestCase):
             self.assertIn("Name=科研 · 电催化", catalysis)
             self.assertIn("Exec=spikers-science-pal-research-app 05-wang-zhenbin", catalysis)
             self.assertIn("Terminal=false", catalysis)
-            self.assertEqual(len(list(apps.glob("spikers-science-pal-research-*.desktop"))), 16)
+            self.assertEqual(len(list(apps.glob("spikers-science-pal-research-*.desktop"))), 18)
             stale = apps / "spikers-science-pal-research-99-gone.desktop"
             stale.write_text("[Desktop Entry]\nX-Spikers-Science-Pal-Research=99-gone\n")
             subprocess.run(["python3", str(script)], env=env, check=True)
