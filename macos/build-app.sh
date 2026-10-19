@@ -5,15 +5,16 @@ set -euo pipefail
 usage() {
   cat >&2 <<'EOF'
 Usage: macos/build-app.sh [--open] [--dmg] [--guest-dir DIR]
-                                  [--configuration development|production]
+                                  [--configuration development|local|production]
                                   [--sign-identity IDENTITY]
                                   [--notarize-profile PROFILE]
                                   [--factory-download-url URL]
 
 Build a self-contained Apple Silicon app. Development builds select a stable
-local signing certificate automatically. Production builds require an explicit
-signing identity. --dmg requires --configuration production.
---notarize-profile implies --dmg and names a notarytool keychain profile.
+local signing certificate automatically. A local build is ad-hoc signed with
+--sign-identity - and can include a DMG. Production builds require an explicit
+signing identity. --notarize-profile implies --dmg and names a notarytool
+keychain profile.
 
 Development builds carry the compressed factory. Production builds, and any
 build given --factory-download-url, carry a download manifest instead and write
@@ -77,10 +78,22 @@ case "$configuration" in
     bundle_identifier=dev.spikerssciencepal.native.development
     app_display_name="Spiker's Science Pal Dev"
     (( build_dmg == 0 )) || {
-      echo 'build-app: --dmg requires --configuration production' >&2
+      echo 'build-app: --dmg requires --configuration production or local' >&2
       exit 1
     }
     sign_identity=$(python3 "$macos_dir/development-sign-identity.py" "$sign_identity")
+    ;;
+  local)
+    bundle_identifier=dev.spikerssciencepal.native.local
+    app_display_name="Spiker's Science Pal"
+    [[ $sign_identity == - ]] || {
+      echo 'build-app: a local build must be ad-hoc signed with --sign-identity -' >&2
+      exit 1
+    }
+    [[ -z $notarize_profile ]] || {
+      echo 'build-app: a local build is not notarized' >&2
+      exit 1
+    }
     ;;
   production)
     bundle_identifier=dev.spikerssciencepal.native
@@ -105,6 +118,8 @@ legacy_app="$repo_dir/dist/Spiker's Science Pal.app"
 app="$repo_dir/dist/app.noindex/Spiker's Science Pal.app"
 if [[ $configuration == production ]]; then
   app="$repo_dir/dist/release.noindex/Spiker's Science Pal.app"
+elif [[ $configuration == local ]]; then
+  app="$repo_dir/dist/local.noindex/Spiker's Science Pal.app"
 fi
 contents="$app/Contents"
 bundled_qemu="$contents/Resources/runtime/bin/Spiker's Science Pal"

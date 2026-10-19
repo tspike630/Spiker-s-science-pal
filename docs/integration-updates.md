@@ -85,3 +85,42 @@ root) to the persistent VM as a read-only virtio disk with serial
 `spikers-previous`, and the package's `spikers-science-pal-import-previous` copies the
 user's files and lists or installs their packages from it. See the
 [README](../README.md#existing-vm-data).
+
+## Where the installer is
+
+`make guest` builds both guest archives and the factory disk. `guest/build.sh`
+passes `spikers-science-pal-*.pkg.tar.zst` and
+`spikers-science-pal-research-*.pkg.tar.zst` to the factory, and
+`guest/factory/build-image.sh` installs those local packages with `pacstrap -U`.
+A disk built from `main2` at `623d584` or later already contains
+`spikers-science-pal-research`. Opening that VM does not need `pacman -U`.
+
+On 2026-10-18 `make guest-package` completed in the ARM64 builder. The same
+archives are committed under `guest/prebuilt/` so they can be downloaded:
+
+- [spikers-science-pal-0.1.0-23-aarch64.pkg.tar.zst](https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-preinstall-receipt-b758/guest/prebuilt/spikers-science-pal-0.1.0-23-aarch64.pkg.tar.zst)
+- [spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst](https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-preinstall-receipt-b758/guest/prebuilt/spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst)
+
+The research archive is `arch = any`, `pkgver = 0.4.0-1`. On an existing VM,
+`sudo pacman -U` of the integration archive first, then the research archive,
+installs the workbench. A factory disk built from `main2` at `623d584` or later
+installs both during `pacstrap` and does not need that manual step.
+
+The factory disk built on 2026-10-19 already contains both packages.
+`packages.txt` in the release lists `spikers-science-pal-research 0.4.0-1`.
+The compressed disk is 3.9 GiB. GitHub stores files only up to 2 GiB, so the
+release keeps four parts and one installer script that downloads them, checks
+them, and writes the single disk:
+
+https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19/install-factory-vm.sh
+
+```
+sh install-factory-vm.sh
+```
+
+The script writes `spikers-aarch64-edge.img`, the 20 GiB VM disk. Its
+uncompressed sha256 is
+`e35304268b2fb8ae2695643ab682e4a75725f63a4c2d0f2ec4fee7a1c8603208`. The Mac DMG
+is still produced by `make release` on Apple Silicon.
+
+科研包已构建并预装。一个安装包的入口是 `install-factory-vm.sh`，跑完得到已经装好科研包的虚拟机磁盘。

@@ -22,7 +22,7 @@ SHELL_TESTS := network-helper qemu-networking qemu-port-forwarding run-qemu-gpu 
 SHELL_TEST_TARGETS := $(addprefix test-shell-,$(SHELL_TESTS))
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor test guest guest-package refresh runtime firmware app build run run-ephemeral reset version-preflight package package-preflight release release-preflight publish clean clean-all clean-guest
+.PHONY: help doctor test guest guest-package refresh runtime firmware app build run run-ephemeral reset version-preflight package package-preflight release release-preflight publish local-dmg clean clean-all clean-guest
 .PHONY: test-all test-contracts test-guest test-swift test-shell $(SHELL_TEST_TARGETS)
 .PHONY: test-upstream test-guest-install e2e
 
@@ -44,6 +44,7 @@ help:
 	  '  make run DEVELOPMENT_SIGN_IDENTITY="Apple Development: ..."' \
 	  '                      Choose a certificate when several are available' \
 	  '  make package        Create a signed and notarized distribution DMG' \
+	  '  make local-dmg      Build a DMG signed on this Mac, without a Developer ID' \
 	  '  make release        Choose a version, tag, and build a notarized DMG (latest factory)' \
 	  '  make release VERSION=vX.Y.Z  Choose the version without prompting' \
 	  '  make release FORCE=1  Rebuild the factory even if it matches upstream' \
@@ -178,6 +179,14 @@ build: doctor app
 refresh:
 	@$(MAKE) --no-print-directory guest FORCE=1
 	@$(MAKE) --no-print-directory build
+
+local-dmg: guest runtime firmware
+	@$(ROOT)/macos/build-app.sh \
+	  --configuration local \
+	  --dmg \
+	  --sign-identity - \
+	  --guest-dir "$(GUEST_DIST)"
+	@printf 'Local DMG: %s\n' "$(ROOT)/dist/SpikersSciencePal.dmg"
 
 run: app
 	@$(ROOT)/macos/open-qemu-gpu.sh
