@@ -106,24 +106,39 @@ The research archive is `arch = any`, `pkgver = 0.4.0-1`. On an existing VM,
 installs the workbench. A factory disk built from `main2` at `623d584` or later
 installs both during `pacstrap` and does not need that manual step.
 
-The factory disk built on 2026-10-19 already contains both packages.
-`packages.txt` in the release lists `spikers-science-pal-research 0.4.0-1`.
-The compressed disk is 3.9 GiB. GitHub stores files only up to 2 GiB, so the
-release keeps four parts and one installer script that downloads them, checks
-them, and writes the single disk:
+The disk published on 2026-10-19 as `factory-2026-10-19` contains
+`spikers-science-pal-research 0.4.0-1`. The disk published as
+`factory-2026-10-19-research-0.4.8` contains `0.4.8-1`: the research engine,
+the SciencePal launcher, `sp-bridge`, the menu entries, and
+`sciencepal-file-upload.sql`. The compressed file is 3.80 GiB
+(`9f9a4b474e05f1bf8ccef8de7222c647eae844eab485cc5f0acdab530222383e`).
+The 20 GiB disk's sha256 is
+`33caf5836b86a86aba300b2ea1242515f8b7ec406dfd3c55cc18cafd75a0992e`.
 
-https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19/install-factory-vm.sh
+On a Mac, download this file and open it. There is no command to type:
+
+https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19-research-0.4.8/SpikersSciencePal-Research-0.4.8-Mac.zip
+
+Open `安装科研虚拟机 0.4.8` inside the zip. If macOS says it cannot be opened,
+Control-click it and choose Open. The installer downloads the disk, checks it,
+and puts it in an existing Spiker's Science Pal app. A VM disk that is already
+there stays until the app's reset, or until a new data folder is used.
+GitHub stores files only up to 2 GiB, so the disk is also published as four
+parts. The Mac installer joins those parts itself.
+
+A shell script remains for a machine that does not open the Mac app:
+
+https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19-research-0.4.8/install-factory-vm.sh
 
 ```
 sh install-factory-vm.sh
 ```
 
-The script writes `spikers-aarch64-edge.img`, the 20 GiB VM disk. Its
-uncompressed sha256 is
-`e35304268b2fb8ae2695643ab682e4a75725f63a4c2d0f2ec4fee7a1c8603208`. The Mac DMG
-is still produced by `make release` on Apple Silicon.
+The script writes `spikers-aarch64-edge.img`, the 20 GiB VM disk, with
+`spikers-science-pal-research 0.4.8-1` already installed. The Mac DMG is still
+produced by `make release` on Apple Silicon.
 
-科研包已构建并预装。一个安装包的入口是 `install-factory-vm.sh`，跑完得到已经装好科研包的虚拟机磁盘。那份磁盘里的版本是 `spikers-science-pal-research` 0.4.0-1。
+科研包 0.4.8 已经在这份新磁盘里。Mac 上的安装方法是下载上面的压缩包并打开，不用输入命令。
 
 0.4.1 adds the 科研 column (one field, one window). It is a separate archive on `cursor/research-menu-apps-b758`, and the 2026-10-19 factory disk stays on 0.4.0-1:
 
@@ -139,7 +154,7 @@ sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/rese
 
 The menu watches the jsonc those two commands write. Logging in again runs the same scripts from the session unit.
 
-0.4.8 adds sp-bridge. After one SciencePal login, `sp-bridge login` stores the session at mode 0600. The engine then asks the matching platform agent and saves the reply. Without a session it prints the methodology prompt instead. The 2026-10-19 factory disk stays on 0.4.0-1. On a VM that is already running:
+0.4.8 adds sp-bridge. After one SciencePal login, `sp-bridge login` stores the session at mode 0600. The engine then asks the matching platform agent and saves the reply. Without a session it prints the methodology prompt instead. A new download of `factory-2026-10-19-research-0.4.8` already has this package. On a VM that was created from the older 0.4.0 disk and is already running:
 
 ```
 sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-engine-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.8-1-any.pkg.tar.zst
