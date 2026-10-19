@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import subprocess
 import sys
 
 ENGINE = Path(__file__).resolve().parent
@@ -13,8 +14,8 @@ LIB = ENGINE.parent
 if str(LIB) not in sys.path:
     sys.path.insert(0, str(LIB))
 
-from engine.keys import NAMES, get, save, load
 from engine.pipeline import run_pipeline
+from engine.session import connected_agent, task_prompt
 
 
 DATA = os.environ.get("SPIKERS_SCIENCE_PAL_JUDGES_DATA") or "/usr/share/spikers-science-pal-research/judges.json"
@@ -44,8 +45,7 @@ def open_window():
 
 def ask_goal():
     print("Spiker 科研引擎")
-    print("输入一个科研目的。引擎用同一套 9 步处理：问题、文献、数据、特征、建模、解释、筛选、核查、产出。")
-    print("能对上已有领域就用该领域的数据源；对不上就先建领域骨架，再跑完这 9 步。")
+    print("输入一个科研目的。已连接的模型会自己调用本机的 9 步计算，并打开 SciencePal。")
     try:
         return input("> ").strip()
     except EOFError:
@@ -53,50 +53,88 @@ def ask_goal():
         return ""
 
 
-def ask_keys():
-    if not sys.stdin.isatty():
+def connect_model():
+    print("和 OpenCode 一样：先选定模型。第一次打开时，由它自己要求 API key 或浏览器登录。")
+    print("密钥留在那个模型自己的目录里，不会写进科研包。")
+    if shutil.which("omarchy-menu"):
+        subprocess.run(["omarchy-menu", "summon", "setup.default.agent"], check=False)
+    else:
+        print("在终端执行：omarchy default agent opencode")
+    agent = connected_agent()
+    if not agent:
+        print("还没有默认模型。在刚才的菜单里选一个，例如 OpenCode，然后再回到这里。")
         return
-    current = load()
-    changed = False
-    for name in NAMES:
-        if get(name):
-            continue
+    print("现在打开 {}。登录完成后关掉它，再选 2。".format(agent))
+    if shutil.which(agent):
+        subprocess.run([agent], check=False)
+    else:
+        print("找不到 {}。在终端运行一次这个命令，Omarchy 会在第一次使用时安装它。".format(agent))
+
+
+def delegate(goal):
+    agent = connected_agent()
+    if not agent or not shutil.which("omarchy-agent"):
+        print("没有已连接的模型，改为在本机走完 9 步。")
+        return False
+    print("交给 {}。它会运行科研引擎，并打开 SciencePal。".format(agent))
+    os.execvp("omarchy-agent", ["omarchy-agent", "--inline", "--prompt", task_prompt(goal)])
+    return True
+
+
+def wizard():
+    while True:
+        print()
+        print("  1  连接模型（API key）")
+        print("  2  输入目的，让模型自己完成")
+        print("  q  退出")
         try:
-            value = input("{} API key（直接回车跳过）：".format(name)).strip()
+            choice = input("选择：").strip().lower()
         except EOFError:
             print()
-            return
-        if not value:
-            continue
-        current[name] = value
-        changed = True
-    if changed:
-        written = save(current)
-        print("已写入 {}（权限 0600）".format(written))
+            return 0
+        if choice in {"q", "quit", "exit"}:
+            return 0
+        if choice == "1":
+            connect_model()
+        elif choice == "2":
+            goal = ask_goal()
+            if not goal:
+                print("没有目的。")
+                continue
+            if delegate(goal):
+                return 0
+            offline = os.environ.get("SPIKERS_SCIENCE_PAL_ENGINE_OFFLINE") == "1"
+            context = run_pipeline(goal, DATA, science_root(), offline=offline)
+            print("\n".join(context["logs"]))
+            if context.get("report"):
+                print("报告：{}".format(context["report"]))
+        elif choice:
+            print("没有这一项。")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run the nine-step research engine")
     parser.add_argument("--goal", default="")
+    parser.add_argument("--execute", action="store_true", help="run the nine steps locally; an agent calls this")
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--inside", action="store_true")
     args = parser.parse_args()
     foreground = os.environ.get("SPIKERS_SCIENCE_PAL_ENGINE_FOREGROUND")
-    if not args.inside and not foreground and not args.goal and not sys.stdin.isatty():
+    if not args.inside and not foreground and not args.goal and not args.execute and not sys.stdin.isatty():
         open_window()
-    goal = args.goal.strip() or ask_goal()
-    if not goal:
-        print("没有目的，已退出。")
-        return 1
-    if sys.stdin.isatty() and not args.offline:
-        ask_keys()
-    offline = args.offline or os.environ.get("SPIKERS_SCIENCE_PAL_ENGINE_OFFLINE") == "1"
-    context = run_pipeline(goal, DATA, science_root(), offline=offline)
-    print("\n".join(context["logs"]))
-    report = context.get("report")
-    if report:
-        print("报告：{}".format(report))
-    return 0
+    if args.execute or args.goal:
+        goal = args.goal.strip()
+        if not goal:
+            print("没有目的，已退出。")
+            return 1
+        offline = args.offline or os.environ.get("SPIKERS_SCIENCE_PAL_ENGINE_OFFLINE") == "1"
+        context = run_pipeline(goal, DATA, science_root(), offline=offline)
+        print("\n".join(context["logs"]))
+        report = context.get("report")
+        if report:
+            print("报告：{}".format(report))
+        return 0
+    return wizard()
 
 
 if __name__ == "__main__":

@@ -98,6 +98,31 @@ class Engine(unittest.TestCase):
             self.assertIn("05-wang-zhenbin", result.stdout)
             self.assertTrue((home / "science" / "domains" / "05-wang-zhenbin" / "workspace" / "report.html").is_file())
 
+    def test_agent_prompt_calls_both_apps(self):
+        from engine.session import task_prompt
+        text = task_prompt("统计一段语音里的停顿")
+        self.assertIn("spikers-science-pal-engine --execute --goal", text)
+        self.assertIn("spikers-science-pal-sciencepal", text)
+        self.assertIn("统计一段语音里的停顿", text)
+        self.assertNotIn("吸附能", text)
+
+    def test_skill_link_is_created(self):
+        skill = PKG / "files/usr/share/spikers-science-pal-research/skills/spikers-research"
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            env = os.environ.copy()
+            env.update({
+                "HOME": str(home),
+                "SPIKERS_SCIENCE_PAL_SKILL_DIR": str(skill),
+            })
+            result = subprocess.run(
+                [sys.executable, str(LIB / "engine" / "install_skill.py")],
+                env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            link = home / ".config/opencode/skills/spikers-research"
+            self.assertTrue(link.is_symlink())
+            self.assertTrue((link / "SKILL.md").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

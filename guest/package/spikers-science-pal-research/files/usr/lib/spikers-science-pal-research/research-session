@@ -9,3 +9,4 @@ set -euo pipefail
 "${SPIKERS_SCIENCE_PAL_RESEARCH_INIT:-/usr/bin/spikers-science-pal-research-init}" || true
 "${SPIKERS_SCIENCE_PAL_RESEARCH_MENU_ENTRIES:-/usr/lib/spikers-science-pal-research/menu-entries}" || true
 "${SPIKERS_SCIENCE_PAL_RESEARCH_DESKTOP_ENTRIES:-/usr/lib/spikers-science-pal-research/desktop-entries}" || true
+/usr/bin/python3 -I "${SPIKERS_SCIENCE_PAL_RESEARCH_SKILL:-/usr/lib/spikers-science-pal-research/engine/install_skill.py}" || true
