@@ -18,6 +18,27 @@ from engine import keys, model
 from engine.sample_data import CATALYSIS, FEATURES, generic_rows
 
 INTERVAL_SENTENCE = "等宽区间不改域内均值排序"
+# One worked field. The nine steps do not assume this field.
+CATALYSIS_ID = "05-wang-zhenbin"
+
+
+def profile(context):
+    """Words and the target column for this run. Chemistry is one profile."""
+    if context["decision"].get("id") == CATALYSIS_ID:
+        return {
+            "target": "E",
+            "item": "材料",
+            "value": "预测吸附能",
+            "reason": "该材料 {lead} 的贡献为 {gain:.3f}",
+            "limit": "吸附能排序不能代替实验。位点、电位和电解液都还没测。",
+        }
+    return {
+        "target": "y",
+        "item": "对象",
+        "value": "预测值",
+        "reason": "主导特征 {lead} 的贡献为 {gain:.3f}",
+        "limit": "这个排序只说明当前这张表。它不能代替该问题自己的实验。",
+    }
 
 
 def _log(index, name, detail, ok=True):
@@ -94,24 +115,42 @@ def s2_literature(context):
     return _log(2, "文献基线", "{} 条 · {}".format(len(references), path.name))
 
 
-def _rows_from_csv(path):
+def _numeric_rows(path):
+    """Read a table whose first numeric column after the name is not required.
+
+    A target column named E or y is the outcome. Every other numeric column is a feature.
+    """
     rows = []
     with path.open(encoding="utf-8", newline="") as handle:
-        for record in csv.DictReader(handle):
-            if "E" not in record:
-                continue
+        reader = csv.DictReader(handle)
+        fields = reader.fieldnames or []
+        target_name = "E" if "E" in fields else "y" if "y" in fields else ""
+        if not target_name:
+            return []
+        feature_names = [name for name in fields if name not in ("name", "element", target_name)]
+        for record in reader:
             try:
-                energy = float(record["E"])
-                features = [float(record[key]) for key in FEATURES]
-            except (TypeError, ValueError):
+                target = float(record[target_name])
+                features = {name: float(record[name]) for name in feature_names}
+            except (TypeError, ValueError, KeyError):
                 continue
             rows.append({
-                "name": record.get("element") or record.get("name") or "row",
-                "element": record.get("element") or "",
-                "E": energy,
-                **{key: float(record[key]) for key in FEATURES},
+                "name": record.get("name") or record.get("element") or "row",
+                "target_name": target_name,
+                "y": target,
+                **features,
             })
     return rows
+
+
+def _local_tables(directory):
+    raw = directory / "data" / "raw"
+    found = []
+    if not raw.is_dir():
+        return found
+    for path in sorted(raw.rglob("*.csv")):
+        found.extend(_numeric_rows(path))
+    return found
 
 
 def _try_catalysis_hub():
@@ -160,14 +199,11 @@ def _try_materials_project(api_key):
 
 def s3_data(context):
     directory = context["directory"]
-    raw = directory / "data" / "raw" / "cathub"
-    found = []
-    if raw.is_dir():
-        for path in raw.glob("*.csv"):
-            found.extend(_rows_from_csv(path))
-    source = "本地 CSV"
+    found = _local_tables(directory)
+    source = "本地表"
     offline = False
-    if not found and not context.get("offline"):
+    chemistry = context["decision"].get("id") == CATALYSIS_ID
+    if not found and chemistry and not context.get("offline"):
         try:
             found = _try_catalysis_hub()
             source = "Catalysis-Hub"
@@ -182,13 +218,16 @@ def s3_data(context):
                 except (OSError, urllib.error.URLError, ValueError, KeyError):
                     found = []
     if not found:
-        if context["decision"]["id"] == "05-wang-zhenbin":
+        if chemistry:
             found = [dict(row) for row in CATALYSIS]
         else:
             seed = sum(ord(char) for char in (context["decision"]["id"] or context["goal"]))
             found = generic_rows(seed)
         source = "离线回退"
         offline = True
+    for row in found:
+        if "y" not in row and "E" in row:
+            row["y"] = row["E"]
     context["rows"] = found
     context["source"] = source
     context["offline_data"] = offline
@@ -198,20 +237,24 @@ def s3_data(context):
 
 def s4_featurize(context):
     directory = context["directory"]
-    names = FEATURES if context["rows"] and "en" in context["rows"][0] else ("f1", "f2", "f3")
+    sample = context["rows"][0]
+    reserved = {"name", "element", "y", "E", "target_name", "partial"}
+    names = tuple(key for key in sample if key not in reserved and isinstance(sample[key], (int, float)))
+    if not names:
+        names = ("f1", "f2", "f3") if "f1" in sample else FEATURES
     context["feature_names"] = names
     lines = ["# 描述符\n\n", "| 名 | 来源 |\n|---|---|\n"]
     for name in names:
-        lines.append("| {} | 组成或样本列 |\n".format(name))
+        lines.append("| {} | 当前表的数值列 |\n".format(name))
     (directory / "descriptors.md").write_text("".join(lines), encoding="utf-8")
     path = directory / "workspace" / "features.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["name", *names, "E"])
+        writer.writerow(["name", *names, "y"])
         for row in context["rows"]:
-            writer.writerow([row["name"], *[row[name] for name in names], row["E"]])
+            writer.writerow([row["name"], *[row[name] for name in names], row["y"]])
     context["matrix"] = [[float(row[name]) for name in names] for row in context["rows"]]
-    context["target"] = [float(row["E"]) for row in context["rows"]]
+    context["target"] = [float(row["y"]) for row in context["rows"]]
     return _log(4, "特征工程", "{} 列 · {}".format(len(names), path.name))
 
 
@@ -242,6 +285,7 @@ def s6_explain(context):
 
 
 def s7_screen(context):
+    words = profile(context)
     order = sorted(range(len(context["rows"])), key=lambda index: context["predicted"][index])
     chosen = order[:10]
     lead = context.get("lead_feature") or context["feature_names"][0]
@@ -249,14 +293,14 @@ def s7_screen(context):
     path = context["directory"] / "workspace" / "top10.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["rank", "material", "E_pred", "interval_low", "interval_high", "reason"])
+        writer.writerow(["rank", "item", "prediction", "interval_low", "interval_high", "reason"])
         table = []
         for rank, index in enumerate(chosen, 1):
             row = context["rows"][index]
             pred = context["predicted"][index]
             half = context["interval"]
             gain = weight * float(row.get(lead) or 0)
-            reason = "该材料 {} 占据高 → 活性增益 {:.3f}".format(lead, gain)
+            reason = words["reason"].format(lead=lead, gain=gain)
             table.append((rank, row["name"], "{:.3f}".format(pred), "{:.3f}".format(pred - half), "{:.3f}".format(pred + half), reason))
         writer.writerows(table)
     context["top10"] = table
@@ -264,6 +308,7 @@ def s7_screen(context):
 
 
 def s8_audit(context):
+    words = profile(context)
     total = len(context["rows"])
     synthetic = total if context.get("offline_data") else 0
     text = (
@@ -271,8 +316,8 @@ def s8_audit(context):
         "数据来源：{}\n"
         "样本 {} 条，其中离线或合成 {} 条。\n"
         "等宽预测区间只描述残差尺度。{}\n"
-        "吸附能或活性的排序不能代替实验。位点、电位和电解液都还没测。\n"
-    ).format(context["source"], total, synthetic, INTERVAL_SENTENCE)
+        "{}\n"
+    ).format(context["source"], total, synthetic, INTERVAL_SENTENCE, words["limit"])
     path = context["directory"] / "workspace" / "audit.md"
     path.write_text(text, encoding="utf-8")
     context["audit"] = text
@@ -282,9 +327,10 @@ def s8_audit(context):
 
 def s9_report(context):
     directory = context["directory"]
+    words = profile(context)
     title = context["decision"]["label"]
     rows = context.get("top10") or []
-    head = "".join("<th>{}</th>".format(html.escape(name)) for name in ("rank", "material", "E_pred", "low", "high", "reason"))
+    head = "".join("<th>{}</th>".format(html.escape(name)) for name in ("rank", "item", words["value"], "low", "high", "reason"))
     body = []
     for row in rows:
         cells = "".join("<td>{}</td>".format(html.escape(str(cell))) for cell in row)

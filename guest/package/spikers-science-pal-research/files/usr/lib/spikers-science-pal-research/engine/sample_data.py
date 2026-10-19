@@ -32,6 +32,6 @@ def generic_rows(seed):
             "f1": round(0.2 * index + (value % 5) * 0.1, 3),
             "f2": round(1.5 - 0.08 * index, 3),
             "f3": round((value % 7) / 3, 3),
-            "E": round(-1.4 + 0.11 * index + (value % 3) * 0.05, 3),
+            "y": round(-1.4 + 0.11 * index + (value % 3) * 0.05, 3),
         })
     return rows

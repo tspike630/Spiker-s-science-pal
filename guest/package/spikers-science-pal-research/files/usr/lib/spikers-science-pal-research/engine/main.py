@@ -44,7 +44,8 @@ def open_window():
 
 def ask_goal():
     print("Spiker 科研引擎")
-    print("输入你的科研目的。例如：从公开计算材料数据库出发，数据驱动地筛选低成本、高活性的替代 OER 催化剂")
+    print("输入一个科研目的。引擎用同一套 9 步处理：问题、文献、数据、特征、建模、解释、筛选、核查、产出。")
+    print("能对上已有领域就用该领域的数据源；对不上就先建领域骨架，再跑完这 9 步。")
     try:
         return input("> ").strip()
     except EOFError:

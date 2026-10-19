@@ -62,17 +62,17 @@ full three-level table per field, served on `127.0.0.1:8765`; forward port
 
 ```sh
 make guest-package
-# dist/guest/packages/spikers-science-pal-research-0.4.2-1-any.pkg.tar.zst
+# dist/guest/packages/spikers-science-pal-research-0.4.3-1-any.pkg.tar.zst
 # make guest installs that archive into the factory disk.
 ```
 
-A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.2-1`. An older disk can still take the archive with `sudo pacman -U`.
+A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.3-1`. An older disk can still take the archive with `sudo pacman -U`.
 
 ## Two applications on the menu
 
 `engine` and `sciencepal` are the first custom rows, above the 科研 column. Omarchy appends extension rows after its built-in menu, so they sit with the other Spiker rows rather than above the built-in Apps row. The same two launchers are desktop files whose names sort to the top of Apps.
 
-- **Spiker 科研引擎** runs `spikers-science-pal-engine`. It asks for a goal, routes it onto one of the 15 fields, and runs nine steps. Without a network or an API key it uses a built-in sample and labels the report 离线回退.
+- **Spiker 科研引擎** runs `spikers-science-pal-engine`. Any research goal goes through the same nine steps. A goal that matches one of the 15 fields uses that field's sources; the electrocatalysis wording is only that field's template. A goal that matches none of them gets a new skeleton and still finishes the nine steps. Without a network it uses a built-in sample and labels the report 离线回退.
 - **SciencePal 平台** runs `spikers-science-pal-sciencepal`, which opens https://sciencepal.ai/ in an app window.
 
 API keys are written only to `~/.config/spikers-science-pal/api_keys.json` with mode 0600. Nothing in the package contains a key.

@@ -33,6 +33,19 @@ class Engine(unittest.TestCase):
         decision = route("给温室番茄设计滴灌排班", load_judges(JUDGES))
         self.assertFalse(decision["known"])
 
+    def test_another_field_uses_the_same_steps_without_catalysis_wording(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            context = run_pipeline("把一段语音按能量切开", JUDGES, home / "science", offline=True)
+            self.assertEqual(context["decision"]["id"], "06-wang-li")
+            text = context["report"].read_text(encoding="utf-8")
+            self.assertNotIn("吸附能", text)
+            self.assertNotIn("Catalysis-Hub", text)
+            self.assertIn("离线回退，非作品结论", text)
+            self.assertTrue((context["directory"] / "workspace" / "top10.csv").is_file())
+        decision = route("给温室番茄设计滴灌排班", load_judges(JUDGES))
+        self.assertFalse(decision["known"])
+
     def test_offline_oer_run_writes_report_and_top10(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
