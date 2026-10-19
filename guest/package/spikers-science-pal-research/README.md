@@ -62,11 +62,22 @@ full three-level table per field, served on `127.0.0.1:8765`; forward port
 
 ```sh
 make guest-package
-# dist/guest/packages/spikers-science-pal-research-0.4.1-1-any.pkg.tar.zst
+# dist/guest/packages/spikers-science-pal-research-0.4.8-1-any.pkg.tar.zst
 # make guest installs that archive into the factory disk.
 ```
 
-A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.1-1`. An older disk can still take the archive with `sudo pacman -U`.
+A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.8-1`. An older disk can still take the archive with `sudo pacman -U`.
+
+## Two applications on the menu
+
+`engine` and `sciencepal` are the first custom rows, above the 科研 column. Omarchy appends extension rows after its built-in menu, so they sit with the other Spiker rows rather than above the built-in Apps row. The same two launchers are desktop files whose names sort to the top of Apps.
+
+- **Spiker 科研引擎** runs `spikers-science-pal-engine` in Omarchy's floating terminal. A known field runs the nine steps, then asks that field's SciencePal agent when `sp-bridge login` has saved a session. A new field asks Spiker's Literature Discovery Lab for the methodology JSON and then runs the same steps. With no token, or if the platform is down, the engine prints the methodology prompt and keeps the local report. `--offline` skips the platform.
+- **SciencePal 平台** runs `spikers-science-pal-sciencepal`, which opens https://sciencepal.ai/ in an app window.
+
+API keys are written only to `~/.config/spikers-science-pal/api_keys.json` with mode 0600. Nothing in the package contains a key.
+
+Sending a file on sciencepal.ai fails while `authenticated` cannot execute `scrub_nested_message_unicode`. The SQL to grant that, after checking the function is not `SECURITY DEFINER`, is `sciencepal-file-upload.sql` in this package. Applying it is a change in the Supabase project, not in the VM.
 
 ## Demo inside the VM
 

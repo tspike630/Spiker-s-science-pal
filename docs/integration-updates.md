@@ -138,3 +138,13 @@ sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/rese
 ```
 
 The menu watches the jsonc those two commands write. Logging in again runs the same scripts from the session unit.
+
+0.4.8 adds sp-bridge. After one SciencePal login, `sp-bridge login` stores the session at mode 0600. The engine then asks the matching platform agent and saves the reply. Without a session it prints the methodology prompt instead. The 2026-10-19 factory disk stays on 0.4.0-1. On a VM that is already running:
+
+```
+sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-engine-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.8-1-any.pkg.tar.zst
+/usr/lib/spikers-science-pal-research/menu-entries
+/usr/lib/spikers-science-pal-research/desktop-entries
+```
+
+`sciencepal-file-upload.sql` in that package is the grant for `scrub_nested_message_unicode`. It has to be run by the database owner in the Supabase SQL editor. Installing the package does not change sciencepal.ai.

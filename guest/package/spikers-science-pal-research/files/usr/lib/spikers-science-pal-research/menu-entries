@@ -22,7 +22,7 @@ import fields
 MAXIMUM_BYTES = 256 * 1024
 HEADER = "  // Spiker's Science Pal research: 科研 column, one app per field (added once each; safe to remove).\n"
 OLD_HEADER = "  // Spiker's Science Pal research: workbench and 15-judge guide rows (added once each; safe to remove).\n"
-RELEASE = 2
+RELEASE = 4
 
 
 def own(entry):
@@ -53,6 +53,24 @@ def judge_rows():
 
 
 def column_rows():
+    # Omarchy appends extension rows after the built-in menu, so these two
+    # cannot be placed above the built-in Apps row. They are the first custom
+    # rows, above the 科研 column. Inside Apps they are also desktop files,
+    # sorted to the top by a leading space in the Name.
+    applications = (
+        ("app.engine", RELEASE, own({
+            "parent": "root",
+            "icon": fields.DEFAULT_ICON,
+            "label": "Spiker 科研引擎",
+            "description": "应用1 · 输入科研目的",
+            "action": "omarchy-launch-floating-terminal-with-presentation spikers-science-pal-engine --inside"})),
+        ("app.sciencepal", RELEASE, own({
+            "parent": "root",
+            "icon": "\U000f059f",
+            "label": "SciencePal 平台",
+            "description": "应用2 · 打开 sciencepal.ai",
+            "action": "spikers-science-pal-sciencepal"})),
+    )
     parent = ("research", RELEASE, own({
         "icon": fields.DEFAULT_ICON, "label": "科研", "title": "科研"}))
     utilities = (
@@ -75,7 +93,7 @@ def column_rows():
             "icon": "\U000f0079", "label": "作品导出",
             "description": "打开 ~/science/exports", "action": 'xdg-open "$HOME/science/exports"'})),
     )
-    return (parent,) + tuple(judge_rows()) + utilities
+    return applications + (parent,) + tuple(judge_rows()) + utilities
 
 
 def parse_jsonc(text):

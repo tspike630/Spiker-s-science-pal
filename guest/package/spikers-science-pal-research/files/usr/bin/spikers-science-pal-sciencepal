@@ -1,0 +1,14 @@
+#!/bin/bash
+# Application 2. Open the official SciencePal site in its own window.
+# Chromium's app mode is the window. There is no page in between.
+set -euo pipefail
+url=https://sciencepal.ai/
+for browser in chromium chromium-browser google-chrome-stable google-chrome; do
+  if command -v "$browser" >/dev/null 2>&1; then
+    exec "$browser" --app="$url"
+  fi
+done
+if command -v omarchy-launch-browser >/dev/null 2>&1; then
+  exec omarchy-launch-browser "$url"
+fi
+exec xdg-open "$url"
