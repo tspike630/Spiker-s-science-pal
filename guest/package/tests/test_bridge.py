@@ -117,6 +117,7 @@ class BridgeTests(unittest.TestCase):
                     False, False, lambda goal, decision: draft(goal, decision))
             finally:
                 server.shutdown()
+                server.server_close()
             self.assertTrue(any("方法学已取回" in line for line in context["logs"]))
             self.assertIn("按产量排序", context["report"].read_text(encoding="utf-8"))
 
@@ -143,6 +144,7 @@ class BridgeTests(unittest.TestCase):
                     False, False, lambda goal, decision: None)
             finally:
                 server.shutdown()
+                server.server_close()
             self.assertTrue((context["export"] / "platform.md").is_file())
             self.assertIn("平台已按虚拟机报告写完", (context["export"] / "platform.md").read_text(encoding="utf-8"))
             self.assertTrue(any("Agent 深化完成" in line for line in context["logs"]))

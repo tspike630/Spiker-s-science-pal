@@ -1,18 +1,32 @@
 """Call sciencepal.ai with the user's own Supabase session.
 
-Checked on 2026-10-19 from the public site, without sending a prompt:
+Checked on 2026-10-19 from the public site, without sending a prompt.
+SPIKERS_SCIENCE_PAL_BACKEND_URL and SPIKERS_SCIENCE_PAL_SUPABASE_URL are read
+at call time so a test can point them at a local stand-in after import.
 
-  NEXT_PUBLIC_BACKEND_URL = https://sciencepal.ai/api
-  NEXT_PUBLIC_SUPABASE_URL = https://dwkmdejtbxsavupvhjmc.supabase.co
-  GET  /api/agents                          401, the route exists
-  POST /api/agent/initiate                  401, multipart field "prompt"
-  GET  /api/thread/{id}/agent-runs          401, JSON field agent_runs
-  POST /api/thread/{id}/agent/start         401
-  POST /api/workspace/files/upload          exists, multipart field "files"
+  Backend  https://sciencepal.ai/api
+  Supabase https://dwkmdejtbxsavupvhjmc.supabase.co
+  Anon key  NEXT_PUBLIC_SUPABASE_ANON_KEY from the site JavaScript, kept below.
+            Never commit a real user token.
 
-The website reads conversation text from Supabase table public.messages
-filtered by thread_id. The anon key is the public NEXT_PUBLIC_SUPABASE_ANON_KEY
-shipped in the site's JavaScript. The user's access token is not in this file.
+  GET  /api/agents
+       401 without auth. The route exists. Rows come from agents, data, items, or list.
+  POST /api/agent/initiate
+       multipart fields prompt and agent_id. The JSON contains thread_id; search nested.
+  GET  /api/thread/{id}/agent-runs
+       {agent_runs:[{status}]}. Done statuses: completed, complete, stopped,
+       failed, error, success, cancelled, canceled, idle.
+  POST /api/workspace/files/upload
+       multipart field name files.
+  GET  {supabase}/rest/v1/messages?thread_id=eq.{id}&select=type,content,created_at&order=created_at.asc
+       headers apikey (anon) and Authorization Bearer (user token).
+  POST {supabase}/auth/v1/token?grant_type=refresh_token
+       JSON {refresh_token}, header apikey.
+
+Token file ~/.config/spikers-science-pal/sp-token.json mode 0600.
+Field agent names are FIELD_AGENTS. The new-domain method agent is
+Spiker's Literature Discovery Lab. Poll pause defaults to 3s
+(SPIKERS_SCIENCE_PAL_BRIDGE_PAUSE); tests set 0.
 """
 
 import json
@@ -202,7 +216,7 @@ def _items(payload):
     if isinstance(payload, list):
         return payload
     if isinstance(payload, dict):
-        for key in ("agents", "data", "items"):
+        for key in ("agents", "data", "items", "list"):
             value = payload.get(key)
             if isinstance(value, list):
                 return value

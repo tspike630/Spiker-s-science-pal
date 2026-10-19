@@ -72,7 +72,7 @@ A VM created from that disk already has the package. `pacman -Q spikers-science-
 
 `engine` and `sciencepal` are the first custom rows, above the 科研 column. Omarchy appends extension rows after its built-in menu, so they sit with the other Spiker rows rather than above the built-in Apps row. The same two launchers are desktop files whose names sort to the top of Apps.
 
-- **Spiker 科研引擎** runs `spikers-science-pal-engine` in Omarchy's floating terminal. A goal that matches one of the 15 fields runs the nine steps. A new goal is classified into a discipline, writes a skeleton, asks for a data source, a metric and features, and accepts a methodology JSON pasted back from SciencePal before continuing.
+- **Spiker 科研引擎** runs `spikers-science-pal-engine` in Omarchy's floating terminal. A known field runs the nine steps, then asks that field's SciencePal agent when `sp-bridge login` has saved a session. A new field asks Spiker's Literature Discovery Lab for the methodology JSON and then runs the same steps. With no token, or if the platform is down, the engine prints the methodology prompt and keeps the local report. `--offline` skips the platform.
 - **SciencePal 平台** runs `spikers-science-pal-sciencepal`, which opens https://sciencepal.ai/ in an app window.
 
 API keys are written only to `~/.config/spikers-science-pal/api_keys.json` with mode 0600. Nothing in the package contains a key.
