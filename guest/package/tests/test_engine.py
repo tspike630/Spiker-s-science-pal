@@ -100,8 +100,24 @@ class Engine(unittest.TestCase):
             self.assertIn("05-wang-zhenbin", result.stdout)
             self.assertTrue((home / "science" / "domains" / "05-wang-zhenbin" / "workspace" / "report.html").is_file())
 
-    def test_pasted_methodology_json_sets_the_metric(self):
-        from engine.newdomain import draft, parse_method
+    def test_platform_methodology_template_parses(self):
+        from engine.newdomain import draft, methodology_prompt, parse_method
+        goal = "给温室番茄设计滴灌排班"
+        decision = route(goal, load_judges(JUDGES))
+        config = draft(goal, decision)
+        prompt = methodology_prompt(config)
+        self.assertIn("严格按以下 JSON 输出", prompt)
+        self.assertIn("data_sources", prompt)
+        self.assertIn(goal, prompt)
+        merged = parse_method(
+            '{"domain":"设施园艺","data_sources":["https://example.test/tomato"],'
+            '"features":["水分（土壤）","光照"],"model":"岭回归，留一",'
+            '"interpretation":"重要性","screening":"按产量排序","verification":"需田间试验"}',
+            config)
+        self.assertEqual(merged["data_source"], "https://example.test/tomato")
+        self.assertEqual(merged["features"][0], "水分")
+        self.assertEqual(merged["metric"], "按产量排序")
+        self.assertEqual(merged["verification"], "需田间试验")
         decision = route("给温室番茄设计滴灌排班", load_judges(JUDGES))
         config = parse_method(
             '{"data_source":"https://example.test/tomato","metric":"产量","features":["水分","光照","温度"],"model":"岭回归","validation":"留一"}',

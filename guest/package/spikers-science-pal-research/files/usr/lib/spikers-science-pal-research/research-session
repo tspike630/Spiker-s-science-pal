@@ -10,3 +10,18 @@ set -euo pipefail
 "${SPIKERS_SCIENCE_PAL_RESEARCH_MENU_ENTRIES:-/usr/lib/spikers-science-pal-research/menu-entries}" || true
 "${SPIKERS_SCIENCE_PAL_RESEARCH_DESKTOP_ENTRIES:-/usr/lib/spikers-science-pal-research/desktop-entries}" || true
 /usr/bin/python3 -I "${SPIKERS_SCIENCE_PAL_RESEARCH_SKILL:-/usr/lib/spikers-science-pal-research/engine/install_skill.py}" || true
+
+# Super+P opens SciencePal. The loader lives in Omarchy's Hyprland toggles
+# directory, which is read after the user's own config. No Omarchy file is edited.
+toggles=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr
+loader=$toggles/zz-spikers-science-pal-research.lua
+expected='-- Spiker research: Super+P opens SciencePal (package-owned).
+pcall(dofile, "/usr/share/spikers-science-pal-research/hyprland.lua")'
+if [[ ! -f $loader || $(<"$loader") != "$expected" ]]; then
+  mkdir -p "$toggles"
+  printf '%s\n' "$expected" >"$loader.tmp"
+  mv -f "$loader.tmp" "$loader"
+  if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+    hyprctl reload >/dev/null 2>&1 || true
+  fi
+fi

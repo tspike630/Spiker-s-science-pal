@@ -32,21 +32,32 @@ def draft(goal, decision):
 
 def methodology_prompt(config):
     return (
-        "请只输出 JSON，不要解释。研究目的：{goal}\n"
-        "学科大类：{discipline}\n"
-        "字段：data_source（数据来源或 URL），metric（目标指标），"
-        "features（3 个特征名的数组），model（模型），validation（验证方式）。\n"
-        '{{\n  "data_source": "{source}",\n  "metric": "{metric}",\n'
-        '  "features": {features},\n  "model": "{model}",\n  "validation": "{validation}"\n}}\n'
+        "我研究一个不在你预置领域内的新方向：「{goal}」。\n"
+        "请帮我设计该方向的完整科研方法学，严格按以下 JSON 输出（不要其他文字）：\n"
+        "{{\n"
+        '  "domain": "{discipline}",\n'
+        '  "data_sources": ["{source}"],\n'
+        "  \"features\": {features},\n"
+        '  "model": "{model}，{validation}",\n'
+        '  "interpretation": "如何解释模型（SHAP/重要性）",\n'
+        '  "screening": "{metric}",\n'
+        '  "verification": "哪些结论需实验验证"\n'
+        "}}\n"
+        "若某项你无法确定，填 \"需人工确认\"，不要编造。\n"
     ).format(
         goal=config["goal"],
         discipline=config["discipline"],
         source=config["data_source"],
-        metric=config["metric"],
         features=json.dumps(config["features"], ensure_ascii=False),
         model=config["model"],
         validation=config["validation"],
+        metric=config["metric"],
     )
+
+
+def _short_feature(text):
+    name = str(text).split("（", 1)[0].split("(", 1)[0].strip()
+    return name or str(text).strip()
 
 
 def parse_method(text, config):
@@ -59,13 +70,30 @@ def parse_method(text, config):
     if not isinstance(payload, dict):
         raise ValueError("方法学回答必须是 JSON 对象")
     merged = dict(config)
-    for key in ("data_source", "metric", "model", "validation"):
+    for key in ("data_source", "metric", "model", "validation", "interpretation", "screening", "verification"):
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             merged[key] = value.strip()
+    domain = payload.get("domain")
+    if isinstance(domain, str) and domain.strip():
+        merged["discipline"] = domain.strip()
+    sources = payload.get("data_sources")
+    if isinstance(sources, list) and sources:
+        first = str(sources[0]).strip()
+        if first:
+            merged["data_source"] = first
     features = payload.get("features")
     if isinstance(features, list) and features:
-        names = [str(item).strip() for item in features if str(item).strip()]
+        notes = [str(item).strip() for item in features if str(item).strip()]
+        names = []
+        for note in notes[:3]:
+            short = _short_feature(note)
+            if short in names:
+                short = "{}{}".format(short, len(names) + 1)
+            names.append(short)
         if names:
-            merged["features"] = names[:3]
+            merged["features"] = names
+            merged["feature_notes"] = notes[:3]
+    if not payload.get("metric") and isinstance(payload.get("screening"), str) and payload["screening"].strip():
+        merged["metric"] = payload["screening"].strip()
     return merged
