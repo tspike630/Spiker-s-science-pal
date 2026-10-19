@@ -1,0 +1,4 @@
+#!/bin/bash
+# Open a research field the way the Omarchy menu opens an AI app: its own
+# window, titled with the field, with a short list of things to run.
+exec /usr/bin/python3 -I /usr/lib/spikers-science-pal-research/research-app "$@"

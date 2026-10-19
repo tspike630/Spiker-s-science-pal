@@ -123,4 +123,18 @@ uncompressed sha256 is
 `e35304268b2fb8ae2695643ab682e4a75725f63a4c2d0f2ec4fee7a1c8603208`. The Mac DMG
 is still produced by `make release` on Apple Silicon.
 
-科研包已构建并预装。一个安装包的入口是 `install-factory-vm.sh`，跑完得到已经装好科研包的虚拟机磁盘。
+科研包已构建并预装。一个安装包的入口是 `install-factory-vm.sh`，跑完得到已经装好科研包的虚拟机磁盘。那份磁盘里的版本是 `spikers-science-pal-research` 0.4.0-1。
+
+0.4.1 adds the 科研 column (one field, one window). It is a separate archive on `cursor/research-menu-apps-b758`, and the 2026-10-19 factory disk stays on 0.4.0-1:
+
+https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-menu-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.1-1-any.pkg.tar.zst
+
+On a VM that is already running:
+
+```
+sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-menu-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.1-1-any.pkg.tar.zst
+/usr/lib/spikers-science-pal-research/menu-entries
+/usr/lib/spikers-science-pal-research/desktop-entries
+```
+
+The menu watches the jsonc those two commands write. Logging in again runs the same scripts from the session unit.

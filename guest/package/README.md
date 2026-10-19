@@ -161,7 +161,7 @@ capability matrix. The whole 15-field matrix is generated from
 `tools/build-judges.py` (45 runnable scripts, all stdlib or optdepends).
 `make guest` installs this package into the factory disk, so a downloaded VM
 already has it. `build-all.sh` builds it next to the integration package.
-Its rows join the same user menu extension (keys `workbench.*` and `judges.*`) — see its
+Its rows join the same user menu extension as one **科研** column (the same shape as Install → AI) — see its
 [README](spikers-science-pal-research/README.md).
 
 ## Boot console

@@ -1,0 +1,80 @@
+#!/usr/bin/python3 -I
+"""Install one desktop launcher per research field.
+
+The Omarchy app list reads these the same way it reads ChatGPT or Claude
+after they are installed. Re-running rewrites only our own files.
+"""
+
+import json
+import os
+from pathlib import Path
+import sys
+
+import fields
+
+DATA = Path(os.environ.get("SPIKERS_SCIENCE_PAL_JUDGES_DATA")
+            or "/usr/share/spikers-science-pal-research/judges.json")
+MARKER = "X-Spikers-Science-Pal-Research"
+
+
+def applications_dir():
+    home = Path(os.environ["HOME"])
+    data_home = Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")
+    return data_home / "applications"
+
+
+def desktop_text(entry_id, name, comment, keywords):
+    keyword_line = ";".join(keywords)
+    return (
+        "[Desktop Entry]\n"
+        "Type=Application\n"
+        f"Name={name}\n"
+        f"Comment={comment}\n"
+        f"Exec=spikers-science-pal-research-app {entry_id}\n"
+        "Terminal=false\n"
+        "Categories=Science;\n"
+        f"Keywords={keyword_line};\n"
+        "Icon=applications-science\n"
+        f"{MARKER}={entry_id}\n"
+    )
+
+
+def write_if_changed(path, text):
+    if path.is_file() and path.read_text(encoding="utf-8") == text:
+        return
+    path.write_text(text, encoding="utf-8")
+
+
+def main():
+    try:
+        data = json.loads(DATA.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        print(f"读不到领域列表：{error}", file=sys.stderr)
+        return 1
+    directory = applications_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    live = {"overview"}
+    write_if_changed(
+        directory / "spikers-science-pal-research-overview.desktop",
+        desktop_text("overview", "科研", "15 个领域，点开一个再做", ["科研", "science", "research"]))
+    for judge in data["judges"]:
+        live.add(judge["id"])
+        name = "科研 · " + fields.label(judge)
+        comment = f"{judge['name_zh']} · {judge.get('research', '')}"
+        keywords = ["科研", fields.label(judge), judge["name_zh"], judge["id"], "science"]
+        write_if_changed(
+            directory / f"spikers-science-pal-research-{judge['id']}.desktop",
+            desktop_text(judge["id"], name, comment, keywords))
+    for path in directory.glob("spikers-science-pal-research-*.desktop"):
+        text = path.read_text(encoding="utf-8")
+        owned = ""
+        for line in text.splitlines():
+            if line.startswith(MARKER + "="):
+                owned = line.split("=", 1)[1]
+        if owned and owned not in live:
+            path.unlink()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

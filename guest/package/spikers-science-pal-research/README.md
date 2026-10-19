@@ -5,22 +5,26 @@ into **15 deep field research workbenches** — one per invited judge's domain �
 so a scientist (or reviewer) opens their field from the menu and is inside a
 working research environment, not a slide deck.
 
-## What each judge's menu row does
+## What the 科研 column does
 
-`judges.01-ma-weiying` … `judges.15-liu-gang`, plus `judges.overview`, are
-injected into the user menu (same mechanism as the base package: written into
-`~/.config/omarchy/extensions/omarchy-menu.jsonc`, idempotent). Clicking a
-row runs `spikers-science-pal-domain <id>`, which:
+Super+Space shows **科研**, the same kind of column as Install → AI. The
+parent row has no action. Each field is a child row with a short name
+(文献情报, 电催化, …). The rows are written into
+`~/.config/omarchy/extensions/omarchy-menu.jsonc`. Clicking a field runs
+`spikers-science-pal-research-app <id>`, which opens its own window. Inside
+that window:
 
-1. builds `~/science/domains/<id>/` — README.md (field background, three-level
-   workflow table, real datasets, references, roadmap, tools table),
-   `launchpad.py` (L1: offline-runnable pure-stdlib demo), `l2_advanced.py`
-   (L2: standard-method implementation), `l3_extend.py` (L3: real open-data
-   experiment; the same pipeline smokes on synthetic data when `data/raw/`
-   is empty), the same three as `.ipynb`, `data/data_fetch.sh`, `workspace/`;
-2. probes the field's tools (`pip install …` / `pacman -S …` when missing);
-3. opens Jupyter Lab pointed at that directory when Jupyter is installed,
-   otherwise opens the directory and shows the run commands.
+1. the field directory is built at `~/science/domains/<id>/` — README.md
+   (field background, three-level workflow table, real datasets, references,
+   roadmap, tools table), `launchpad.py` (L1), `l2_advanced.py` (L2),
+   `l3_extend.py` (L3; synthetic smoke when `data/raw/` is empty), the same
+   three as `.ipynb`, `data/data_fetch.sh`, `workspace/`;
+2. a short menu offers the practice run, the standard method, the data
+   download, the real-data analysis, the result page, and the folder.
+
+The same launchers are also desktop files under
+`~/.local/share/applications/`, so the app list can open them too.
+`research.overview` still opens the capability matrix in the browser.
 
 ## Three levels per field
 
@@ -58,25 +62,26 @@ full three-level table per field, served on `127.0.0.1:8765`; forward port
 
 ```sh
 make guest-package
-# dist/guest/packages/spikers-science-pal-research-0.4.0-1-any.pkg.tar.zst
+# dist/guest/packages/spikers-science-pal-research-0.4.1-1-any.pkg.tar.zst
 # make guest installs that archive into the factory disk.
 ```
 
-A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.0-1`. An older disk can still take the archive with `sudo pacman -U`.
+A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.1-1`. An older disk can still take the archive with `sudo pacman -U`.
 
 ## Demo inside the VM
 
 1. Boot to the Spiker's Science Pal desktop.
-2. Menu → a field workbench (for example `05-wang-zhenbin`) → Jupyter, or `python3 l3_extend.py`.
+2. Menu → 科研 → a field (for example 电催化). In the window, `4` runs the real-data analysis.
 3. With data already in `data/raw/`, the run prints a table and writes `workspace/report.html`. Without data it says the numbers are a synthetic smoke test.
-4. Menu → 科研能力总览 opens `http://127.0.0.1:8765/` in the VM browser (16 pages, no network).
+4. Menu → 科研 → 功能矩阵 opens `http://127.0.0.1:8765/` in the VM browser (16 pages, no network).
 5. Forward port 8765 in the Mac app if a judge should open the same page on the host.
 
 `data_fetch.sh` is safe to run twice: the second run prints `数据已就绪，使用本地数据` and exits 0. Download before the demo; L3 itself does not use the network.
 
-Re-login or restart the session and the menu gains `workbench.*` (评委导览 /
-新建实验记录 / 文献库 / Jupyter Lab / 科研工作台目录 / 作品包·导出) and
-`judges.*` (总览 + 15 领域科研功能台).
+Re-login or restart the session and the menu gains the **科研** column:
+功能矩阵, one row per field, 新建实验记录, 文献库, Jupyter Lab, 工作台目录,
+作品导出. A row left over from the older flat list is removed when it is
+still exactly the text this package wrote.
 
 ## Optional upgrades per field
 

@@ -1,0 +1,238 @@
+#!/usr/bin/python3 -I
+"""Open one research field as an application.
+
+From the Omarchy menu (no terminal attached) this opens its own window,
+titled with the field name. From a terminal it stays in that terminal.
+Inside the window the field is a short menu: practice run, standard method,
+download, real-data analysis, result page, folder.
+"""
+
+import json
+import os
+from pathlib import Path
+import shlex
+import shutil
+import subprocess
+import sys
+
+import fields
+
+DATA = Path(os.environ.get("SPIKERS_SCIENCE_PAL_JUDGES_DATA")
+            or "/usr/share/spikers-science-pal-research/judges.json")
+WORKBENCH = os.environ.get("SPIKERS_SCIENCE_PAL_DOMAIN_WORKBENCH") or "/usr/lib/spikers-science-pal-research/domain-workbench"
+INIT = os.environ.get("SPIKERS_SCIENCE_PAL_RESEARCH_INIT") or "/usr/bin/spikers-science-pal-research-init"
+DOMAIN = os.environ.get("SPIKERS_SCIENCE_PAL_DOMAIN") or "/usr/bin/spikers-science-pal-domain"
+
+
+def science_root():
+    home = Path(os.environ["HOME"])
+    return Path(os.environ.get("SCIENCE_ROOT") or home / "science")
+
+
+def load_judges():
+    return json.loads(DATA.read_text(encoding="utf-8"))
+
+
+def find_judge(data, judge_id):
+    return next((judge for judge in data["judges"] if judge["id"] == judge_id), None)
+
+
+def ask(prompt):
+    try:
+        return input(prompt).strip()
+    except EOFError:
+        print()
+        return "q"
+
+
+def clear():
+    if sys.stdout.isatty():
+        sys.stdout.write("\033[2J\033[H")
+        sys.stdout.flush()
+
+
+def pause():
+    ask("\n按回车返回")
+
+
+def title_for(data, app_id):
+    if app_id == "overview":
+        return "科研"
+    judge = find_judge(data, app_id)
+    if judge is None:
+        return "科研"
+    return "科研 · " + fields.label(judge)
+
+
+def open_window(app_id, title):
+    """Replace this process with a terminal window running the same app."""
+    script = str(Path(sys.argv[0]).resolve())
+    python = sys.executable or "python3"
+    inner = " ".join(shlex.quote(part) for part in (python, "-I", script, "--inside", app_id))
+    terminal = shutil.which("xdg-terminal-exec")
+    if terminal:
+        command = [
+            terminal,
+            "--app-id=dev.spikerssciencepal.research." + app_id,
+            "--title=" + title,
+            "-e", "bash", "-c", inner,
+        ]
+        if shutil.which("uwsm-app") and shutil.which("setsid"):
+            command = ["setsid", "uwsm-app", "--", *command]
+        elif shutil.which("setsid"):
+            command = ["setsid", *command]
+        os.execvp(command[0], command)
+    presentation = shutil.which("omarchy-launch-floating-terminal-with-presentation")
+    if presentation:
+        os.execvp(presentation, [presentation, python, "-I", script, "--inside", app_id])
+
+
+def should_open_window(inside):
+    if inside or os.environ.get("SPIKERS_SCIENCE_PAL_RESEARCH_FOREGROUND"):
+        return False
+    return not sys.stdin.isatty()
+
+
+def prepare(judge_id):
+    if Path(INIT).is_file():
+        subprocess.run([INIT], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    directory = science_root() / "domains" / judge_id
+    directory.mkdir(parents=True, exist_ok=True)
+    completed = subprocess.run(
+        [WORKBENCH, judge_id, str(directory)],
+        check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        sys.stderr.write(completed.stderr or completed.stdout)
+        return None
+    return directory
+
+
+def run_in(directory, args):
+    print()
+    completed = subprocess.run(args, cwd=directory, stdin=subprocess.DEVNULL)
+    if completed.returncode != 0:
+        print(f"退出码 {completed.returncode}")
+    pause()
+
+
+def open_path(path):
+    if shutil.which("xdg-open"):
+        subprocess.run(["xdg-open", str(path)], stdin=subprocess.DEVNULL, check=False)
+        return
+    print(path)
+
+
+def domain_session(judge, directory):
+    label = fields.label(judge)
+    while True:
+        clear()
+        print(label)
+        print(judge["name_zh"])
+        print(directory)
+        print()
+        print("  1  开箱演示        几秒，练习数据")
+        print("  2  标准方法        练习数据")
+        print("  3  下载公开数据")
+        print("  4  真实数据分析    写出结果页")
+        print("  5  打开结果页")
+        print("  6  打开目录")
+        print()
+        choice = ask("选择数字，q 退出：").lower()
+        if choice in {"q", "quit", "exit", ""}:
+            if choice == "":
+                continue
+            return
+        if choice == "1":
+            run_in(directory, ["python3", "launchpad.py"])
+        elif choice == "2":
+            run_in(directory, ["python3", "l2_advanced.py"])
+        elif choice == "3":
+            print("\n正在下载公开数据，请等它结束。")
+            run_in(directory, ["bash", "data/data_fetch.sh"])
+        elif choice == "4":
+            run_in(directory, ["python3", "l3_extend.py"])
+        elif choice == "5":
+            report = directory / "workspace" / "report.html"
+            if not report.is_file():
+                print("\n还没有结果页。先选 4。")
+                pause()
+            else:
+                open_path(report)
+                pause()
+        elif choice == "6":
+            open_path(directory)
+            pause()
+        else:
+            print("\n没有这一项。")
+            pause()
+
+
+def open_matrix():
+    if not Path(DOMAIN).is_file():
+        print("\n功能矩阵脚本不在：" + DOMAIN)
+        pause()
+        return
+    print()
+    subprocess.run([DOMAIN, "overview"], stdin=subprocess.DEVNULL, check=False)
+    pause()
+
+
+def overview_session(data):
+    judges = data["judges"]
+    while True:
+        clear()
+        print("科研")
+        print()
+        print("   0  功能矩阵      浏览器里的领域说明")
+        for index, judge in enumerate(judges, 1):
+            print(f"  {index:>2}  {fields.label(judge):<8}  {judge['name_zh']}")
+        print()
+        choice = ask("选择应用，q 退出：").lower()
+        if choice in {"q", "quit", "exit"}:
+            return
+        if choice == "":
+            continue
+        if choice == "0":
+            open_matrix()
+            continue
+        if choice.isdigit() and 1 <= int(choice) <= len(judges):
+            judge = judges[int(choice) - 1]
+            directory = prepare(judge["id"])
+            if directory is None:
+                pause()
+                continue
+            domain_session(judge, directory)
+            continue
+        print("\n没有这一项。")
+        pause()
+
+
+def main():
+    args = sys.argv[1:]
+    inside = False
+    if args and args[0] == "--inside":
+        inside = True
+        args = args[1:]
+    app_id = args[0] if args else "overview"
+    try:
+        data = load_judges()
+    except (OSError, ValueError) as error:
+        print(f"读不到领域列表：{error}", file=sys.stderr)
+        return 1
+    if app_id != "overview" and find_judge(data, app_id) is None:
+        print(f"未知领域：{app_id}", file=sys.stderr)
+        return 1
+    if should_open_window(inside):
+        open_window(app_id, title_for(data, app_id))
+    if app_id == "overview":
+        overview_session(data)
+        return 0
+    directory = prepare(app_id)
+    if directory is None:
+        return 1
+    domain_session(find_judge(data, app_id), directory)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
