@@ -69,9 +69,11 @@ def prepare_directory(context):
             encoding="utf-8")
         (directory / "platform-handoff.md").write_text(
             "# 交给 SciencePal 平台\n\n目的：{}\n\n"
-            "虚拟机没有可用的平台登录，不能代这个账号发消息。"
-            "打开应用2后，把这段目的贴进 Agent，让它补数据源、描述符和验证方式。\n".format(context["goal"]),
+            "把引擎打印的方法学请求贴进平台 Agent。把返回的 JSON 贴回引擎后，9 个环节会按这份配置继续。\n".format(context["goal"]),
             encoding="utf-8")
+        config = context.get("config") or {}
+        (directory / "domain.json").write_text(
+            json.dumps(config, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return directory
 
 
@@ -93,6 +95,9 @@ def s1_problem(context):
             chosen = index
             break
     lines = ["# 问题\n", "目的：{}\n".format(context["goal"])]
+    metric = (context.get("config") or {}).get("metric")
+    if metric:
+        lines.append("目标指标：{}\n".format(metric))
     for index, problem in enumerate(problems, 1):
         mark = "（选中）" if index - 1 == chosen else ""
         lines.append("{}. {} {}\n".format(index, problem, mark))
@@ -222,7 +227,8 @@ def s3_data(context):
             found = [dict(row) for row in CATALYSIS]
         else:
             seed = sum(ord(char) for char in (context["decision"]["id"] or context["goal"]))
-            found = generic_rows(seed)
+            features = (context.get("config") or {}).get("features")
+            found = generic_rows(seed, features)
         source = "离线回退"
         offline = True
     for row in found:
@@ -343,7 +349,7 @@ def s9_report(context):
         "table{{border-collapse:collapse}} td,th{{border:1px solid #30363d;padding:.35rem .7rem}}"
         ".warn{{color:#f0883e}} .ok{{color:#3fb950}}</style>"
         "<h1>{title}</h1><p class='{klass}'>{banner}</p>"
-        "<p>目的：{goal}</p><p>R²={r2:.3f}，LOOCV={loo:.3f}。{interval}</p>"
+        "<p>目的：{goal}</p><p>{metric}</p><p>R²={r2:.3f}，LOOCV={loo:.3f}。{interval}</p>"
         "<h2>筛选</h2><table><tr>{head}</tr>{body}</table>"
         "<h2>核查</h2><pre>{audit}</pre>"
     ).format(
@@ -351,6 +357,7 @@ def s9_report(context):
         klass=klass,
         banner=html.escape(banner),
         goal=html.escape(context["goal"]),
+        metric=html.escape((context.get("config") or {}).get("metric") or ""),
         r2=context.get("r2") or 0,
         loo=context.get("loocv") or 0,
         interval=html.escape(INTERVAL_SENTENCE),

@@ -32,6 +32,31 @@ def _norm(text):
     return re.sub(r"\s+", "", str(text or "")).lower()
 
 
+DISCIPLINES = (
+    ("材料", ("材料", "催化", "晶体", "合金", "吸附")),
+    ("化学", ("化学", "分子", "反应", "合成", "化合物")),
+    ("生物", ("生物", "基因", "细胞", "番茄", "植物", "作物")),
+    ("医学", ("医学", "临床", "病", "影像", "诊断")),
+    ("文本", ("文本", "文献", "语料", "写作")),
+    ("图像", ("图像", "图片", "视觉", "照片")),
+    ("信号", ("信号", "语音", "音频", "波形", "脑电")),
+    ("网络", ("网络", "图", "节点", "社交")),
+    ("数学", ("数学", "公式", "优化", "方程")),
+)
+
+
+def discipline_of(text):
+    folded = _norm(text)
+    best = "通用"
+    score = 0
+    for name, words in DISCIPLINES:
+        hits = sum(1 for word in words if _norm(word) in folded)
+        if hits > score:
+            best = name
+            score = hits
+    return best
+
+
 def route(goal, judges):
     """Return the best field, or an unknown-domain decision when nothing hits."""
     folded = _norm(goal)
@@ -46,7 +71,11 @@ def route(goal, judges):
             best_score = score
             best_id = judge["id"]
     if best_score <= 0:
-        return {"known": False, "id": "", "judge": None, "label": "未知领域", "score": 0}
+        kind = discipline_of(goal)
+        return {
+            "known": False, "id": "", "judge": None, "label": "新领域 · " + kind,
+            "score": 0, "discipline": kind,
+        }
     judge = next(item for item in judges["judges"] if item["id"] == best_id)
     label = judge.get("research") or judge["name_zh"]
-    return {"known": True, "id": best_id, "judge": judge, "label": label, "score": best_score}
+    return {"known": True, "id": best_id, "judge": judge, "label": label, "score": best_score, "discipline": ""}

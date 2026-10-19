@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """The research engine routes a goal and writes the nine-step artifacts offline."""
 
+import json
 import os
 from pathlib import Path
 import stat
@@ -32,6 +33,7 @@ class Engine(unittest.TestCase):
     def test_unknown_goal_stays_unknown(self):
         decision = route("给温室番茄设计滴灌排班", load_judges(JUDGES))
         self.assertFalse(decision["known"])
+        self.assertEqual(decision["discipline"], "生物")
 
     def test_another_field_uses_the_same_steps_without_catalysis_wording(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -98,14 +100,21 @@ class Engine(unittest.TestCase):
             self.assertIn("05-wang-zhenbin", result.stdout)
             self.assertTrue((home / "science" / "domains" / "05-wang-zhenbin" / "workspace" / "report.html").is_file())
 
-    def test_agent_prompt_calls_both_apps(self):
-        from engine.session import task_prompt
-        text = task_prompt("统计一段语音里的停顿")
-        self.assertIn("由你决定步骤", text)
-        self.assertIn("不要把每个目的都做成回归", text)
-        self.assertIn("spikers-science-pal-engine --execute --goal", text)
-        self.assertIn("spikers-science-pal-sciencepal", text)
-        self.assertIn("统计一段语音里的停顿", text)
+    def test_pasted_methodology_json_sets_the_metric(self):
+        from engine.newdomain import draft, parse_method
+        decision = route("给温室番茄设计滴灌排班", load_judges(JUDGES))
+        config = parse_method(
+            '{"data_source":"https://example.test/tomato","metric":"产量","features":["水分","光照","温度"],"model":"岭回归","validation":"留一"}',
+            draft("给温室番茄设计滴灌排班", decision))
+        with tempfile.TemporaryDirectory() as directory:
+            context = run_pipeline(
+                "给温室番茄设计滴灌排班", JUDGES, Path(directory) / "science",
+                offline=True, config=config)
+            text = context["report"].read_text(encoding="utf-8")
+            self.assertIn("产量", text)
+            self.assertIn("水分", (context["directory"] / "workspace" / "features.csv").read_text(encoding="utf-8"))
+            saved = json.loads((context["directory"] / "domain.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["data_source"], "https://example.test/tomato")
 
     def test_skill_link_is_created(self):
         skill = PKG / "files/usr/share/spikers-science-pal-research/skills/spikers-research"

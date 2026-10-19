@@ -22,16 +22,21 @@ CATALYSIS = [
 FEATURES = ("en", "ea", "period", "group")
 
 
-def generic_rows(seed):
+def generic_rows(seed, features=None):
     """Deterministic stand-in table for a field that has no downloaded file."""
+    names = [str(item) for item in (features or []) if str(item).strip()]
+    while len(names) < 3:
+        names.append("f{}".format(len(names) + 1))
+    names = names[:3]
     rows = []
     for index in range(12):
         value = ((seed + 1) * (index + 3)) % 17
-        rows.append({
+        row = {
             "name": "样本-{:02d}".format(index + 1),
-            "f1": round(0.2 * index + (value % 5) * 0.1, 3),
-            "f2": round(1.5 - 0.08 * index, 3),
-            "f3": round((value % 7) / 3, 3),
+            names[0]: round(0.2 * index + (value % 5) * 0.1, 3),
+            names[1]: round(1.5 - 0.08 * index, 3),
+            names[2]: round((value % 7) / 3, 3),
             "y": round(-1.4 + 0.11 * index + (value % 3) * 0.05, 3),
-        })
+        }
+        rows.append(row)
     return rows

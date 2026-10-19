@@ -109,11 +109,12 @@ class ResearchPackage(unittest.TestCase):
             self.assertIn("spikers-science-pal-research-app 05-wang-zhenbin",
                           data["research.05-wang-zhenbin"]["action"])
             self.assertEqual(data["research.overview"]["action"], "spikers-science-pal-domain overview")
-            self.assertEqual(data["engine"]["label"], "Spiker 科研引擎")
-            self.assertEqual(data["engine"]["action"], "spikers-science-pal-engine")
-            self.assertIn("sciencepal.ai", data["sciencepal"]["description"])
-            self.assertLess(text.find('"engine"'), text.find('"research"'))
-            self.assertLess(text.find('"sciencepal"'), text.find('"research"'))
+            self.assertEqual(data["app.engine"]["label"], "Spiker 科研引擎")
+            self.assertEqual(data["app.engine"]["parent"], "root")
+            self.assertIn("omarchy-launch-floating-terminal-with-presentation", data["app.engine"]["action"])
+            self.assertIn("sciencepal.ai", data["app.sciencepal"]["description"])
+            self.assertLess(text.find('"app.engine"'), text.find('"research"'))
+            self.assertLess(text.find('"app.sciencepal"'), text.find('"research"'))
             before = text
             subprocess.run(["python3", str(script)], env=env, check=True)
             self.assertEqual(before, (home / ".config/omarchy/extensions/omarchy-menu.jsonc").read_text())

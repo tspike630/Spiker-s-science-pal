@@ -139,10 +139,10 @@ sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/rese
 
 The menu watches the jsonc those two commands write. Logging in again runs the same scripts from the session unit.
 
-0.4.5 adds the general handoff. The connected Omarchy agent decides the procedure for the goal. It may use the shell, open SciencePal, and run the nine-step calculator only when the goal is a table to screen. The 2026-10-19 factory disk stays on 0.4.0-1. On a VM that is already running:
+0.4.6 runs a known field straight through the nine steps. A new field is classified into a discipline, writes a skeleton, and can take a methodology JSON pasted from SciencePal before those steps continue. The 2026-10-19 factory disk stays on 0.4.0-1. On a VM that is already running:
 
 ```
-sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-engine-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.5-1-any.pkg.tar.zst
+sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-engine-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.6-1-any.pkg.tar.zst
 /usr/lib/spikers-science-pal-research/menu-entries
 /usr/lib/spikers-science-pal-research/desktop-entries
 ```

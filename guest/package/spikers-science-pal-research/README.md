@@ -62,17 +62,17 @@ full three-level table per field, served on `127.0.0.1:8765`; forward port
 
 ```sh
 make guest-package
-# dist/guest/packages/spikers-science-pal-research-0.4.5-1-any.pkg.tar.zst
+# dist/guest/packages/spikers-science-pal-research-0.4.6-1-any.pkg.tar.zst
 # make guest installs that archive into the factory disk.
 ```
 
-A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.5-1`. An older disk can still take the archive with `sudo pacman -U`.
+A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.6-1`. An older disk can still take the archive with `sudo pacman -U`.
 
 ## Two applications on the menu
 
 `engine` and `sciencepal` are the first custom rows, above the 科研 column. Omarchy appends extension rows after its built-in menu, so they sit with the other Spiker rows rather than above the built-in Apps row. The same two launchers are desktop files whose names sort to the top of Apps.
 
-- **Spiker 科研引擎** runs `spikers-science-pal-engine`. After a model is connected the way OpenCode is, that model decides the steps for the goal. It may use the shell, open SciencePal, and call `spikers-science-pal-engine --execute` only when the goal is a table to screen. The nine-step calculator is one tool, not the path for every goal.
+- **Spiker 科研引擎** runs `spikers-science-pal-engine` in Omarchy's floating terminal. A goal that matches one of the 15 fields runs the nine steps. A new goal is classified into a discipline, writes a skeleton, asks for a data source, a metric and features, and accepts a methodology JSON pasted back from SciencePal before continuing.
 - **SciencePal 平台** runs `spikers-science-pal-sciencepal`, which opens https://sciencepal.ai/ in an app window.
 
 API keys are written only to `~/.config/spikers-science-pal/api_keys.json` with mode 0600. Nothing in the package contains a key.

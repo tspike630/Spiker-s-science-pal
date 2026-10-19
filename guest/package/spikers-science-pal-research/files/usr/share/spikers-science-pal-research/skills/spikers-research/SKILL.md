@@ -1,20 +1,15 @@
 ---
 name: spikers-research
 description: >
-  Use when the user states any research goal on Spiker's Science Pal.
-  Decide the procedure yourself. Use the local engine only for a tabular
-  screen, and open SciencePal when the platform should do part of the work.
-  Do not invent measurements.
+  Use when the user states a research goal on Spiker's Science Pal.
+  Known fields run the nine local steps. A new field gets a discipline
+  skeleton, then the same steps. Do not invent measurements.
 ---
 
 # Spiker 科研
 
-用户给出的是任意研究目的。你来决定步骤，不要默认走九步回归。
+运行 `spikers-science-pal-engine --execute --goal "<目的>"`。
 
-可用的系统：
+对上 15 个已有领域时，它直接做完 9 步。对不上时，它按学科大类写骨架；交互运行会询问数据源、目标指标和特征，也可以贴入 SciencePal 返回的方法学 JSON。
 
-- 终端和虚拟机里的文件。
-- `spikers-science-pal-engine --execute --goal "<目的>"`：只在目的本身是一张表上的特征、模型和筛选时使用。结果在 `~/science/domains/.../workspace/`。标成「离线回退」的数字不能引用。
-- `spikers-science-pal-sciencepal`：打开 https://sciencepal.ai/ 。把目的和已有文件路径写入 `platform-handoff.md`。
-
-做不到就说明做不到。
+只引用 `workspace/report.html` 和 csv。标成「离线回退」的数字不能当结论。需要平台时运行 `spikers-science-pal-sciencepal`。

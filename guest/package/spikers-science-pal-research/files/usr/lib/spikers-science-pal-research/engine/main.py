@@ -2,11 +2,11 @@
 """Menu entry for the research engine. A menu click opens a terminal window."""
 
 import argparse
+import json
 import os
 from pathlib import Path
 import shlex
 import shutil
-import subprocess
 import sys
 
 ENGINE = Path(__file__).resolve().parent
@@ -14,8 +14,9 @@ LIB = ENGINE.parent
 if str(LIB) not in sys.path:
     sys.path.insert(0, str(LIB))
 
+from engine.newdomain import draft, methodology_prompt, parse_method
 from engine.pipeline import run_pipeline
-from engine.session import connected_agent, task_prompt
+from engine.router import load_judges, route
 
 
 DATA = os.environ.get("SPIKERS_SCIENCE_PAL_JUDGES_DATA") or "/usr/share/spikers-science-pal-research/judges.json"
@@ -43,67 +44,57 @@ def open_window():
         os.execvp(presentation, [presentation, python, "-I", script, "--inside"])
 
 
-def ask_goal():
-    print("Spiker 科研引擎")
-    print("输入你的目的。已连接的模型自己决定步骤，并在需要时调用本机计算和 SciencePal。")
+def ask_line(prompt):
     try:
-        return input("> ").strip()
+        return input(prompt).strip()
     except EOFError:
         print()
         return ""
 
 
-def connect_model():
-    print("和 OpenCode 一样：先选定模型。第一次打开时，由它自己要求 API key 或浏览器登录。")
-    print("密钥留在那个模型自己的目录里，不会写进科研包。")
-    if shutil.which("omarchy-menu"):
-        subprocess.run(["omarchy-menu", "summon", "setup.default.agent"], check=False)
-    else:
-        print("在终端执行：omarchy default agent opencode")
-    agent = connected_agent()
-    if not agent:
-        print("还没有默认模型。在刚才的菜单里选一个，例如 OpenCode，然后再回到这里。")
-        return
-    print("现在打开 {}。登录完成后关掉它，再选 2。".format(agent))
-    if shutil.which(agent):
-        subprocess.run([agent], check=False)
-    else:
-        print("找不到 {}。在终端运行一次这个命令，Omarchy 会在第一次使用时安装它。".format(agent))
-
-
-def delegate(goal):
-    agent = connected_agent()
-    if not agent or not shutil.which("omarchy-agent"):
-        print("还没有已连接的模型。先选 1。没有模型时，系统不能替任意目的安排步骤。")
-        return False
-    print("交给 {}。它会按这个目的自己调用本机和 SciencePal。".format(agent))
-    os.execvp("omarchy-agent", ["omarchy-agent", "--inline", "--prompt", task_prompt(goal)])
-    return True
+def ask_new_domain(goal, decision):
+    config = draft(goal, decision)
+    print("新领域 · {}".format(config["discipline"]))
+    print("直接回车就用括号里的默认。")
+    source = ask_line("数据源 [{}]：".format(config["data_source"]))
+    metric = ask_line("目标指标 [{}]：".format(config["metric"]))
+    features = ask_line("特征，用逗号分开 [{}]：".format("、".join(config["features"])))
+    if source:
+        config["data_source"] = source
+    if metric:
+        config["metric"] = metric
+    if features:
+        names = [part.strip() for part in features.replace("，", ",").split(",") if part.strip()]
+        if names:
+            config["features"] = names[:3]
+    print()
+    print("若要让 SciencePal 补方法，把下面这段贴进平台 Agent，再把返回的 JSON 贴回这一行。")
+    print(methodology_prompt(config))
+    pasted = ask_line("JSON 或回车跳过：")
+    if pasted:
+        try:
+            config = parse_method(pasted, config)
+            print("已写入平台返回的方法学。")
+        except (ValueError, json.JSONDecodeError) as error:
+            print("没有解析这份 JSON：{}。继续用上面的配置。".format(error))
+    return config
 
 
 def wizard():
-    while True:
-        print()
-        print("  1  连接模型（API key）")
-        print("  2  输入目的，让模型自己完成")
-        print("  q  退出")
-        try:
-            choice = input("选择：").strip().lower()
-        except EOFError:
-            print()
-            return 0
-        if choice in {"q", "quit", "exit"}:
-            return 0
-        if choice == "1":
-            connect_model()
-        elif choice == "2":
-            goal = ask_goal()
-            if not goal:
-                print("没有目的。")
-                continue
-            delegate(goal)
-        elif choice:
-            print("没有这一项。")
+    print("Spiker 科研引擎")
+    print("输入研究目的。对上已有领域会直接做完 9 步。新领域会先建骨架。")
+    goal = ask_line("> ")
+    if not goal:
+        print("没有目的，已退出。")
+        return 1
+    decision = route(goal, load_judges(DATA))
+    config = ask_new_domain(goal, decision) if not decision["known"] else None
+    offline = os.environ.get("SPIKERS_SCIENCE_PAL_ENGINE_OFFLINE") == "1"
+    context = run_pipeline(goal, DATA, science_root(), offline=offline, config=config)
+    print("\n".join(context["logs"]))
+    if context.get("report"):
+        print("报告：{}".format(context["report"]))
+    return 0
 
 
 def main():

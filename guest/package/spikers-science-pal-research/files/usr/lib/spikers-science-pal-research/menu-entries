@@ -22,7 +22,7 @@ import fields
 MAXIMUM_BYTES = 256 * 1024
 HEADER = "  // Spiker's Science Pal research: 科研 column, one app per field (added once each; safe to remove).\n"
 OLD_HEADER = "  // Spiker's Science Pal research: workbench and 15-judge guide rows (added once each; safe to remove).\n"
-RELEASE = 3
+RELEASE = 4
 
 
 def own(entry):
@@ -58,12 +58,14 @@ def column_rows():
     # rows, above the 科研 column. Inside Apps they are also desktop files,
     # sorted to the top by a leading space in the Name.
     applications = (
-        ("engine", RELEASE, own({
+        ("app.engine", RELEASE, own({
+            "parent": "root",
             "icon": fields.DEFAULT_ICON,
             "label": "Spiker 科研引擎",
-            "description": "应用1 · 输入科研目的，自动走完 9 个环节",
-            "action": "spikers-science-pal-engine"})),
-        ("sciencepal", RELEASE, own({
+            "description": "应用1 · 输入科研目的",
+            "action": "omarchy-launch-floating-terminal-with-presentation spikers-science-pal-engine --inside"})),
+        ("app.sciencepal", RELEASE, own({
+            "parent": "root",
             "icon": "\U000f059f",
             "label": "SciencePal 平台",
             "description": "应用2 · 打开 sciencepal.ai",
