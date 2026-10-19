@@ -139,10 +139,10 @@ sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/rese
 
 The menu watches the jsonc those two commands write. Logging in again runs the same scripts from the session unit.
 
-0.4.7 opens SciencePal with Chromium's app window, or the Omarchy browser when Chromium is absent. Super+P does the same after the next login. A new field's methodology prompt matches the platform JSON. The 2026-10-19 factory disk stays on 0.4.0-1. On a VM that is already running:
+0.4.8 adds sp-bridge. After one SciencePal login, `sp-bridge login` stores the session at mode 0600. The engine then asks the matching platform agent and saves the reply. Without a session it prints the methodology prompt instead. The 2026-10-19 factory disk stays on 0.4.0-1. On a VM that is already running:
 
 ```
-sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-engine-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.7-1-any.pkg.tar.zst
+sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-engine-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.8-1-any.pkg.tar.zst
 /usr/lib/spikers-science-pal-research/menu-entries
 /usr/lib/spikers-science-pal-research/desktop-entries
 ```

@@ -62,11 +62,11 @@ full three-level table per field, served on `127.0.0.1:8765`; forward port
 
 ```sh
 make guest-package
-# dist/guest/packages/spikers-science-pal-research-0.4.7-1-any.pkg.tar.zst
+# dist/guest/packages/spikers-science-pal-research-0.4.8-1-any.pkg.tar.zst
 # make guest installs that archive into the factory disk.
 ```
 
-A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.7-1`. An older disk can still take the archive with `sudo pacman -U`.
+A VM created from that disk already has the package. `pacman -Q spikers-science-pal-research` prints `0.4.8-1`. An older disk can still take the archive with `sudo pacman -U`.
 
 ## Two applications on the menu
 

@@ -15,8 +15,7 @@ if str(LIB) not in sys.path:
     sys.path.insert(0, str(LIB))
 
 from engine.newdomain import draft, methodology_prompt, parse_method
-from engine.pipeline import run_pipeline
-from engine.router import load_judges, route
+from engine.handoff import complete_goal
 
 
 DATA = os.environ.get("SPIKERS_SCIENCE_PAL_JUDGES_DATA") or "/usr/share/spikers-science-pal-research/judges.json"
@@ -82,15 +81,14 @@ def ask_new_domain(goal, decision):
 
 def wizard():
     print("Spiker 科研引擎")
-    print("输入研究目的。对上已有领域会直接做完 9 步。新领域会先建骨架。")
+    print("输入研究目的。已有领域会做完本地计算，并在已登录时自动请平台深化。")
+    print("新领域会先向平台要方法学；平台不可达时再请你补三项，或贴回 JSON。")
     goal = ask_line("> ")
     if not goal:
         print("没有目的，已退出。")
         return 1
-    decision = route(goal, load_judges(DATA))
-    config = ask_new_domain(goal, decision) if not decision["known"] else None
     offline = os.environ.get("SPIKERS_SCIENCE_PAL_ENGINE_OFFLINE") == "1"
-    context = run_pipeline(goal, DATA, science_root(), offline=offline, config=config)
+    context = complete_goal(goal, DATA, science_root(), offline, True, ask_new_domain)
     print("\n".join(context["logs"]))
     if context.get("report"):
         print("报告：{}".format(context["report"]))
@@ -113,7 +111,7 @@ def main():
             print("没有目的，已退出。")
             return 1
         offline = args.offline or os.environ.get("SPIKERS_SCIENCE_PAL_ENGINE_OFFLINE") == "1"
-        context = run_pipeline(goal, DATA, science_root(), offline=offline)
+        context = complete_goal(goal, DATA, science_root(), offline, False, ask_new_domain)
         print("\n".join(context["logs"]))
         report = context.get("report")
         if report:
