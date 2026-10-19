@@ -106,10 +106,22 @@ The research archive is `arch = any`, `pkgver = 0.4.0-1`. On an existing VM,
 installs the workbench. A factory disk built from `main2` at `623d584` or later
 installs both during `pacstrap` and does not need that manual step.
 
-`make guest` created the 20 GiB factory disk and stopped while mounting it:
-`unknown filesystem type 'btrfs'`. Kernel 6.12.94+ on this machine has no btrfs
-module, so the factory image and the Mac DMG were not produced. This repository
-has no GitHub Releases and no release tags. `make release` and `make publish`
-still run on Apple Silicon, where the kernel can mount that btrfs disk.
+The factory disk built on 2026-10-19 already contains both packages.
+`packages.txt` in the release lists `spikers-science-pal-research 0.4.0-1`.
+The compressed disk is 3.9 GiB, so the release stores it as four parts:
 
-科研包已构建并预装：两个包已推到 `guest/prebuilt/`。安装包推送位置是上面两个 raw 链接。工厂磁盘和 DMG 没有生成。
+https://github.com/tspike630/Spiker-s-science-pal/releases/tag/factory-2026-10-19
+
+```
+cat spikers-aarch64-edge.img.zst.001 \
+    spikers-aarch64-edge.img.zst.002 \
+    spikers-aarch64-edge.img.zst.003 \
+    spikers-aarch64-edge.img.zst.004 > spikers-aarch64-edge.img.zst
+zstd -d spikers-aarch64-edge.img.zst
+```
+
+`spikers-aarch64-edge.img` is the 20 GiB VM disk. Its uncompressed sha256 is
+`e35304268b2fb8ae2695643ab682e4a75725f63a4c2d0f2ec4fee7a1c8603208`. The Mac DMG
+is still produced by `make release` on Apple Silicon.
+
+科研包已构建并预装。安装包推送位置：`factory-2026-10-19`。下载的是已经装好科研包的虚拟机磁盘。
