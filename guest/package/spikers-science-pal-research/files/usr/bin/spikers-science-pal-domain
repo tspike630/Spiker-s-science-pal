@@ -48,6 +48,12 @@ sys.exit(0 if ok else 1)
   exit 1
 fi
 
+# The menu launches the field as its own window. A terminal stays in place.
+app=${SPIKERS_SCIENCE_PAL_RESEARCH_APP:-/usr/bin/spikers-science-pal-research-app}
+if [[ -x $app ]]; then
+  exec "$app" "$id"
+fi
+
 dir="$science/domains/$id"
 mkdir -p "$dir/data" "$dir/workspace"
 "$workbench_cmd" "$id" "$dir"

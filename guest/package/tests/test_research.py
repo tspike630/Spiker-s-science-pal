@@ -101,10 +101,14 @@ class ResearchPackage(unittest.TestCase):
                  "import json,re,sys; t=sys.stdin.read(); t=re.sub(r'^\\s*//[^\\n]*(\\n|$)','',t,flags=re.M); "
                  "print(json.dumps(json.loads(re.sub(r',(\\s*[}\\]])', r'\\1', t))))"],
                 input=text, text=True))
-            keys = [key for key in data if key.startswith("workbench.") or key.startswith("judges.")]
+            keys = [key for key in data if key == "research" or key.startswith("research.")]
             self.assertEqual(len(keys), 22, keys)
-            self.assertIn("judges.overview", data)
-            self.assertIn("judges.05-wang-zhenbin", data)
+            self.assertNotIn("action", data["research"])
+            self.assertEqual(data["research"]["label"], "科研")
+            self.assertEqual(data["research.05-wang-zhenbin"]["label"], "电催化")
+            self.assertIn("spikers-science-pal-research-app 05-wang-zhenbin",
+                          data["research.05-wang-zhenbin"]["action"])
+            self.assertEqual(data["research.overview"]["action"], "spikers-science-pal-domain overview")
             before = text
             subprocess.run(["python3", str(script)], env=env, check=True)
             self.assertEqual(before, (home / ".config/omarchy/extensions/omarchy-menu.jsonc").read_text())
@@ -161,6 +165,81 @@ class ResearchPackage(unittest.TestCase):
             self.assertTrue((target / "l3_extend.py").is_file())
             self.assertTrue((target / "l3_extend.ipynb").is_file())
             shutil.rmtree(target)
+
+    def test_old_flat_menu_rows_become_the_research_column(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            old = ('  "judges.05-wang-zhenbin": {"icon":"x","label":"old",'
+                   '"action":"spikers-science-pal-domain 05-wang-zhenbin"},\n')
+            extension = home / ".config/omarchy/extensions"
+            extension.mkdir(parents=True)
+            (extension / "omarchy-menu.jsonc").write_text("{\n" + old + "}\n")
+            state = home / ".local/state/spikers-science-pal-research"
+            state.mkdir(parents=True)
+            (state / "menu-entries").write_text("1\n")
+            (state / "menu-rows.json").write_text(json.dumps(
+                {"judges.05-wang-zhenbin": old}, ensure_ascii=False))
+            env = os.environ.copy()
+            env.update({
+                "HOME": str(home),
+                "XDG_CONFIG_HOME": str(home / ".config"),
+                "XDG_STATE_HOME": str(home / ".local/state"),
+                "SPIKERS_SCIENCE_PAL_JUDGES_DATA": str(JUDGES),
+                "SPIKERS_SCIENCE_PAL_SPIKERS_MENU": str(home / "menu-default.jsonc"),
+            })
+            (home / "menu-default.jsonc").write_text("{}\n")
+            result = subprocess.run(
+                ["python3", str(LIB / "menu-entries")], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            text = (extension / "omarchy-menu.jsonc").read_text()
+            self.assertNotIn("judges.05-wang-zhenbin", text)
+            self.assertIn('"research":', text)
+            self.assertIn("电催化", text)
+
+    def test_field_app_runs_the_practice_script(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            env = os.environ.copy()
+            env.update({
+                "HOME": str(home),
+                "SCIENCE_ROOT": str(home / "science"),
+                "SPIKERS_SCIENCE_PAL_JUDGES_DATA": str(JUDGES),
+                "SPIKERS_SCIENCE_PAL_DOMAIN_WORKBENCH": str(LIB / "domain-workbench"),
+                "SPIKERS_SCIENCE_PAL_RESEARCH_INIT": str(BIN / "spikers-science-pal-research-init"),
+                "SPIKERS_SCIENCE_PAL_RESEARCH_FOREGROUND": "1",
+            })
+            result = subprocess.run(
+                ["python3", str(LIB / "research-app"), "--inside", "05-wang-zhenbin"],
+                env=env, input="1\n\nq\n", capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("电催化", result.stdout)
+            self.assertIn("开箱演示", result.stdout)
+            self.assertIn("预测活性", result.stdout)
+            self.assertNotIn("退出码", result.stdout)
+
+    def test_desktop_entries_list_each_field(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            env = os.environ.copy()
+            env.update({
+                "HOME": str(home),
+                "XDG_DATA_HOME": str(home / ".local/share"),
+                "SPIKERS_SCIENCE_PAL_JUDGES_DATA": str(JUDGES),
+            })
+            script = LIB / "desktop-entries"
+            for _ in range(2):
+                result = subprocess.run(["python3", str(script)], env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            apps = home / ".local/share/applications"
+            catalysis = (apps / "spikers-science-pal-research-05-wang-zhenbin.desktop").read_text()
+            self.assertIn("Name=科研 · 电催化", catalysis)
+            self.assertIn("Exec=spikers-science-pal-research-app 05-wang-zhenbin", catalysis)
+            self.assertIn("Terminal=false", catalysis)
+            self.assertEqual(len(list(apps.glob("spikers-science-pal-research-*.desktop"))), 16)
+            stale = apps / "spikers-science-pal-research-99-gone.desktop"
+            stale.write_text("[Desktop Entry]\nX-Spikers-Science-Pal-Research=99-gone\n")
+            subprocess.run(["python3", str(script)], env=env, check=True)
+            self.assertFalse(stale.exists())
 
 
 if __name__ == "__main__":
