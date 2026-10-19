@@ -139,10 +139,10 @@ sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/rese
 
 The menu watches the jsonc those two commands write. Logging in again runs the same scripts from the session unit.
 
-0.4.4 adds Spiker 科研引擎 and the SciencePal platform launcher. The engine first uses Omarchy's default agent (OpenCode, Claude, Codex, or another). That agent asks for its own API key on first launch, then runs the local nine steps and opens sciencepal.ai. The 2026-10-19 factory disk stays on 0.4.0-1. On a VM that is already running:
+0.4.5 adds the general handoff. The connected Omarchy agent decides the procedure for the goal. It may use the shell, open SciencePal, and run the nine-step calculator only when the goal is a table to screen. The 2026-10-19 factory disk stays on 0.4.0-1. On a VM that is already running:
 
 ```
-sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-engine-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.4-1-any.pkg.tar.zst
+sudo pacman -U https://github.com/tspike630/Spiker-s-science-pal/raw/cursor/research-engine-apps-b758/guest/prebuilt/spikers-science-pal-research-0.4.5-1-any.pkg.tar.zst
 /usr/lib/spikers-science-pal-research/menu-entries
 /usr/lib/spikers-science-pal-research/desktop-entries
 ```

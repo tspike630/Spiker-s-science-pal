@@ -1,10 +1,7 @@
 """Hand a research goal to the Omarchy agent the user already connected.
 
-Omarchy does not store one shared API key. `omarchy default agent` picks
-OpenCode, Claude, Codex, or another harness. The first launch of that
-harness asks for its own key or browser login. `omarchy-agent --inline`
-then runs it in this window, with permission prompts skipped, so it can
-call the local engine and the SciencePal launcher itself.
+The agent decides the procedure. The nine-step calculator and the
+SciencePal window are tools it may call, not a path every goal must take.
 """
 
 import shutil
@@ -23,15 +20,15 @@ def connected_agent():
 def task_prompt(goal):
     quoted = goal.replace("'", "'\"'\"'")
     return (
-        "你是 Spiker 科研引擎。用户的目的是：\n"
+        "你是这台虚拟机上的科研助手。用户的目的是：\n"
         f"{goal}\n\n"
-        "你要自己调用本机的两个应用，不要编造数字。\n"
-        "1. 应用1的计算：运行\n"
+        "由你决定步骤。不要把每个目的都做成回归或材料筛选。\n"
+        "你可以调用整台系统，包括终端、文件，以及下面两个入口。\n"
+        "应用1，本机计算：只有当目的确实是在一张表上做特征、模型、筛选时，才运行\n"
         f"   spikers-science-pal-engine --execute --goal '{quoted}'\n"
-        "   它会把领域、数据和报告写到 ~/science。读 workspace/report.html、"
-        "top10.csv 和 audit.md，只用里面的句子。\n"
-        "2. 应用2的平台：运行 spikers-science-pal-sciencepal 打开 sciencepal.ai。"
-        "把目的、报告路径和数据来源写进该目录的 platform-handoff.md，方便贴进平台 Agent。\n"
-        "3. 用中文收尾：识别到的领域、数据是离线回退还是外部数据、报告的绝对路径。\n"
-        "离线回退的数字不能当成可以引用的结论。\n"
+        "   然后只引用它写出的 report.html 和 csv。写着「离线回退」的数字不能当结论。\n"
+        "应用2，平台：需要平台上的 Agent、检索或工作流时，运行 spikers-science-pal-sciencepal "
+        "打开 https://sciencepal.ai/ 。把目的和你已经得到的文件路径写进 ~/science 下的 "
+        "platform-handoff.md，方便贴进平台。\n"
+        "做不到的步骤就直说，不要编造测量、文献或数据。用中文说明你实际跑了什么、文件在哪。\n"
     )

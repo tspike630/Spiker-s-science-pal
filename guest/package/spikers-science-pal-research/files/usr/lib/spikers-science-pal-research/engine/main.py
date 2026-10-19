@@ -45,7 +45,7 @@ def open_window():
 
 def ask_goal():
     print("Spiker 科研引擎")
-    print("输入一个科研目的。已连接的模型会自己调用本机的 9 步计算，并打开 SciencePal。")
+    print("输入你的目的。已连接的模型自己决定步骤，并在需要时调用本机计算和 SciencePal。")
     try:
         return input("> ").strip()
     except EOFError:
@@ -74,9 +74,9 @@ def connect_model():
 def delegate(goal):
     agent = connected_agent()
     if not agent or not shutil.which("omarchy-agent"):
-        print("没有已连接的模型，改为在本机走完 9 步。")
+        print("还没有已连接的模型。先选 1。没有模型时，系统不能替任意目的安排步骤。")
         return False
-    print("交给 {}。它会运行科研引擎，并打开 SciencePal。".format(agent))
+    print("交给 {}。它会按这个目的自己调用本机和 SciencePal。".format(agent))
     os.execvp("omarchy-agent", ["omarchy-agent", "--inline", "--prompt", task_prompt(goal)])
     return True
 
@@ -101,13 +101,7 @@ def wizard():
             if not goal:
                 print("没有目的。")
                 continue
-            if delegate(goal):
-                return 0
-            offline = os.environ.get("SPIKERS_SCIENCE_PAL_ENGINE_OFFLINE") == "1"
-            context = run_pipeline(goal, DATA, science_root(), offline=offline)
-            print("\n".join(context["logs"]))
-            if context.get("report"):
-                print("报告：{}".format(context["report"]))
+            delegate(goal)
         elif choice:
             print("没有这一项。")
 

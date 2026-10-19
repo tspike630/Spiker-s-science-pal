@@ -8,7 +8,7 @@
 # user-editable content in ~/science/showcase.
 
 pkgname=spikers-science-pal-research
-pkgver=0.4.4
+pkgver=0.4.5
 pkgrel=1
 pkgdesc="Deep research workbench for Spiker's Science Pal: 15 judge-domain three-level (L1/L2/L3) field workbenches, experiment notes and the ~/science layout"
 arch=('any')

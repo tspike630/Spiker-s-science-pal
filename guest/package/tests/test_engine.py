@@ -101,10 +101,11 @@ class Engine(unittest.TestCase):
     def test_agent_prompt_calls_both_apps(self):
         from engine.session import task_prompt
         text = task_prompt("统计一段语音里的停顿")
+        self.assertIn("由你决定步骤", text)
+        self.assertIn("不要把每个目的都做成回归", text)
         self.assertIn("spikers-science-pal-engine --execute --goal", text)
         self.assertIn("spikers-science-pal-sciencepal", text)
         self.assertIn("统计一段语音里的停顿", text)
-        self.assertNotIn("吸附能", text)
 
     def test_skill_link_is_created(self):
         skill = PKG / "files/usr/share/spikers-science-pal-research/skills/spikers-research"
