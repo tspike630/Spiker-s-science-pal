@@ -108,20 +108,19 @@ installs both during `pacstrap` and does not need that manual step.
 
 The factory disk built on 2026-10-19 already contains both packages.
 `packages.txt` in the release lists `spikers-science-pal-research 0.4.0-1`.
-The compressed disk is 3.9 GiB, so the release stores it as four parts:
+The compressed disk is 3.9 GiB. GitHub stores files only up to 2 GiB, so the
+release keeps four parts and one installer script that downloads them, checks
+them, and writes the single disk:
 
-https://github.com/tspike630/Spiker-s-science-pal/releases/tag/factory-2026-10-19
+https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19/install-factory-vm.sh
 
 ```
-cat spikers-aarch64-edge.img.zst.001 \
-    spikers-aarch64-edge.img.zst.002 \
-    spikers-aarch64-edge.img.zst.003 \
-    spikers-aarch64-edge.img.zst.004 > spikers-aarch64-edge.img.zst
-zstd -d spikers-aarch64-edge.img.zst
+sh install-factory-vm.sh
 ```
 
-`spikers-aarch64-edge.img` is the 20 GiB VM disk. Its uncompressed sha256 is
+The script writes `spikers-aarch64-edge.img`, the 20 GiB VM disk. Its
+uncompressed sha256 is
 `e35304268b2fb8ae2695643ab682e4a75725f63a4c2d0f2ec4fee7a1c8603208`. The Mac DMG
 is still produced by `make release` on Apple Silicon.
 
-科研包已构建并预装。安装包推送位置：`factory-2026-10-19`。下载的是已经装好科研包的虚拟机磁盘。
+科研包已构建并预装。一个安装包的入口是 `install-factory-vm.sh`，跑完得到已经装好科研包的虚拟机磁盘。
