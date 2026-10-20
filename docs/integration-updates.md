@@ -119,11 +119,13 @@ On a Mac, download the app and open it. There is no command to type:
 
 https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19-research-0.4.8/SpikersSciencePal.dmg
 
-Open the DMG and drag Spiker's Science Pal into Applications, then open it from
-there. The first launch downloads the 0.4.8 disk (about 3.8 GiB) inside the
-app window and then starts the VM. Leave about 25 GiB free. This DMG is
-ad-hoc signed, without an Apple Developer ID. If macOS blocks it, open
-System Settings → Privacy & Security and choose Open Anyway.
+Open the DMG and drag Spiker's Science Pal Research into Applications, then
+open that app. It keeps its own VM and does not boot a VM already stored for
+an earlier app. Click Launch Spiker's Science Pal. The first launch downloads
+the 0.4.8 disk (about 3.8 GiB) inside the app window and then starts the VM.
+Leave about 25 GiB free. This DMG is ad-hoc signed, without an Apple Developer
+ID. If macOS blocks it, open System Settings → Privacy & Security and choose
+Open Anyway.
 
 The earlier zip only saved the disk to the Desktop. It is not the app. GitHub
 stores files only up to 2 GiB, so the disk remains four parts beside the DMG

@@ -10,6 +10,7 @@ Usage: macos/build-app.sh [--open] [--dmg] [--guest-dir DIR]
                                   [--notarize-profile PROFILE]
                                   [--factory-download-url URL]
                                   [--download-manifest FILE]
+                                  [--state-directory-name NAME]
 
 Build a self-contained Apple Silicon app. Development builds select a stable
 local signing certificate automatically. A local build is ad-hoc signed with
@@ -22,6 +23,8 @@ build given --factory-download-url, carry a download manifest instead and write
 the image's parts to dist/factory/ for upload beside the DMG. Production builds
 default to the GitHub release of HEAD's vX.Y.Z tag. --download-manifest uses an
 existing manifest, so the compressed image does not have to be on this machine.
+--state-directory-name stores that app's VM in its own Application Support
+folder and uses the name as the app's display name.
 EOF
   exit 64
 }
@@ -34,6 +37,7 @@ sign_identity=${SPIKERS_CODESIGN_IDENTITY:-auto}
 notarize_profile=
 factory_download_url=
 download_manifest=
+state_directory_name=
 while (($#)); do
   case "$1" in
     --open) open_app=1; shift ;;
@@ -69,9 +73,23 @@ while (($#)); do
       download_manifest=$2
       shift 2
       ;;
+    --state-directory-name)
+      (($# >= 2)) || usage
+      state_directory_name=$2
+      shift 2
+      ;;
     *) usage ;;
   esac
 done
+
+if [[ -n $state_directory_name ]]; then
+  state_directory_rest=${state_directory_name//[A-Za-z0-9 ._()\'-]/}
+  if [[ ${#state_directory_name} -gt 80 || $state_directory_name == *..* || $state_directory_name == */* ||
+        $state_directory_name == *\\* || ! $state_directory_name =~ ^[A-Za-z0-9] || -n $state_directory_rest ]]; then
+    echo "build-app: --state-directory-name is empty or unsafe" >&2
+    exit 1
+  fi
+fi
 
 macos_major=$(sw_vers -productVersion | cut -d. -f1)
 [[ $macos_major =~ ^[0-9]+$ ]] && (( macos_major >= 15 )) || {
@@ -279,6 +297,18 @@ value["CFBundleIdentifier"] = sys.argv[2]
 value["CFBundleName"] = value["CFBundleDisplayName"] = sys.argv[3]
 path.write_bytes(plistlib.dumps(value))
 PYTHON
+if [[ -n $state_directory_name ]]; then
+  python3 - "$contents/Info.plist" "$state_directory_name" <<'PYTHON'
+import plistlib, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+name = sys.argv[2]
+value = plistlib.loads(path.read_bytes())
+value["SpikersStateDirectoryName"] = name
+value["CFBundleName"] = value["CFBundleDisplayName"] = name
+path.write_bytes(plistlib.dumps(value))
+PYTHON
+fi
 python3 "$repo_dir/scripts/app_version.py" \
   --root "$repo_dir" --plist "$contents/Info.plist"
 install -m 0644 "$macos_dir/Credits.rtf" "$contents/Resources/Credits.rtf"

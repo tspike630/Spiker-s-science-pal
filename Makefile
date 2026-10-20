@@ -199,7 +199,8 @@ published-dmg: runtime firmware
 	  --dmg \
 	  --sign-identity - \
 	  --guest-dir "$(GUEST_DIST)" \
-	  --download-manifest "$(GUEST_DIST)/download.json"
+	  --download-manifest "$(GUEST_DIST)/download.json" \
+	  --state-directory-name "Spiker's Science Pal Research"
 	@printf 'Local DMG: %s\n' "$(ROOT)/dist/SpikersSciencePal.dmg"
 
 run: app

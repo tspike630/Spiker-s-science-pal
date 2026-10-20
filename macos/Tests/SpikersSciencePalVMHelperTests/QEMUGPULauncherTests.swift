@@ -236,6 +236,12 @@ struct QEMUGPUStorageSpaceEstimateTests {
             environment: [:]
         ))
         #expect(defaultDirectory == "~/Library/Application Support/Spiker's Science Pal")
+        #expect(QEMUGPUStorageSpaceEstimate.dataDirectoryDisplayPath(
+            environment: [:],
+            stateDirectoryName: "Spiker's Science Pal Research"
+        ) == "~/Library/Application Support/Spiker's Science Pal Research")
+        #expect(QEMUGPUStorageSpaceEstimate.resolvedStateDirectoryName("..")
+            == QEMUGPUStorageSpaceEstimate.defaultStateDirectoryName)
 
         let defaultDirectoryURL = try #require(QEMUGPUStorageSpaceEstimate.dataDirectoryURL(
             environment: [:]

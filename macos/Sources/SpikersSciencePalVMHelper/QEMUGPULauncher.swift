@@ -49,6 +49,8 @@ enum QEMUGPURuntimeEnvironment {
 
 enum QEMUGPUStorageSpaceEstimate {
     private static let stateRootEnvironmentKey = "SPIKERS_QEMU_GPU_STATE_ROOT"
+    static let defaultStateDirectoryName = "Spiker's Science Pal"
+    static let stateDirectoryInfoKey = "SpikersStateDirectoryName"
 
     /// Resolution order is the environment override, then the stored
     /// preference, then Application Support. The override stays first because
@@ -57,6 +59,7 @@ enum QEMUGPUStorageSpaceEstimate {
     static func dataDirectoryURL(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         preference: StorageLocationPreference = .default,
+        stateDirectoryName: String? = nil,
         fileManager: FileManager = .default
     ) -> URL? {
         if let configuredRoot = environment[stateRootEnvironmentKey], !configuredRoot.isEmpty {
@@ -72,7 +75,7 @@ enum QEMUGPUStorageSpaceEstimate {
             in: .userDomainMask
         ).first else { return nil }
         return applicationSupport
-            .appendingPathComponent("Spiker's Science Pal", isDirectory: true)
+            .appendingPathComponent(resolvedStateDirectoryName(stateDirectoryName), isDirectory: true)
             .standardizedFileURL
     }
 
@@ -82,6 +85,7 @@ enum QEMUGPUStorageSpaceEstimate {
     static func storageRootURL(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         preference: StorageLocationPreference = .default,
+        stateDirectoryName: String? = nil,
         fileManager: FileManager = .default
     ) -> URL? {
         if let configuredRoot = environment[stateRootEnvironmentKey], !configuredRoot.isEmpty {
@@ -92,7 +96,12 @@ enum QEMUGPUStorageSpaceEstimate {
                 StorageLocationPolicy.stateRoot(forContainer: container)
             )
         }
-        return dataDirectoryURL(environment: environment, fileManager: fileManager)?
+        return dataDirectoryURL(
+            environment: environment,
+            preference: preference,
+            stateDirectoryName: stateDirectoryName,
+            fileManager: fileManager
+        )?
             .appendingPathComponent("VM/v1", isDirectory: true)
             .standardizedFileURL
     }
@@ -100,11 +109,13 @@ enum QEMUGPUStorageSpaceEstimate {
     static func dataDirectoryDisplayPath(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         preference: StorageLocationPreference = .default,
+        stateDirectoryName: String? = nil,
         fileManager: FileManager = .default
     ) -> String? {
         guard let root = dataDirectoryURL(
             environment: environment,
             preference: preference,
+            stateDirectoryName: stateDirectoryName,
             fileManager: fileManager
         ) else { return nil }
         let path = root.path
@@ -116,6 +127,34 @@ enum QEMUGPUStorageSpaceEstimate {
             return "~" + path.dropFirst(home.count)
         }
         return path
+    }
+
+    /// A packaged app can keep its VM out of the shared default folder by
+    /// setting `SpikersStateDirectoryName` in Info.plist. An absent or unsafe
+    /// value keeps the historical folder.
+    static func resolvedStateDirectoryName(
+        _ override: String? = nil,
+        bundle: Bundle = .main
+    ) -> String {
+        if let override {
+            return isSafeStateDirectoryName(override) ? override : defaultStateDirectoryName
+        }
+        if let bundled = bundle.object(forInfoDictionaryKey: stateDirectoryInfoKey) as? String,
+           isSafeStateDirectoryName(bundled) {
+            return bundled
+        }
+        return defaultStateDirectoryName
+    }
+
+    static func isSafeStateDirectoryName(_ name: String) -> Bool {
+        guard (1...80).contains(name.count),
+              let first = name.unicodeScalars.first,
+              CharacterSet.alphanumerics.contains(first),
+              !name.contains(".."),
+              !name.contains("/"),
+              !name.contains("\\") else { return false }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: " ._'()-"))
+        return name.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
 
     private static func validatedConfiguredRoot(_ path: String) -> URL? {
