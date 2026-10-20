@@ -1,0 +1,40 @@
+name: Package Mac app
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - cursor/packaged-mac-app-b758
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    name: Ad-hoc DMG (macos-15)
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pkg-config
+        run: command -v pkg-config || brew install pkg-config
+
+      - name: Build the app and DMG
+        run: make published-dmg
+
+      - name: Require a DMG small enough for a GitHub release
+        run: |
+          size=$(stat -f%z dist/SpikersSciencePal.dmg)
+          echo "DMG bytes: $size"
+          test "$size" -lt 1900000000
+
+      - name: Upload the app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload factory-2026-10-19-research-0.4.8 \
+            dist/SpikersSciencePal.dmg \
+            --repo tspike630/Spiker-s-science-pal \
+            --clobber

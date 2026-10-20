@@ -22,7 +22,7 @@ SHELL_TESTS := network-helper qemu-networking qemu-port-forwarding run-qemu-gpu 
 SHELL_TEST_TARGETS := $(addprefix test-shell-,$(SHELL_TESTS))
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor test guest guest-package refresh runtime firmware app build run run-ephemeral reset version-preflight package package-preflight release release-preflight publish local-dmg clean clean-all clean-guest
+.PHONY: help doctor test guest guest-package refresh runtime firmware app build run run-ephemeral reset version-preflight package package-preflight release release-preflight publish local-dmg published-dmg clean clean-all clean-guest
 .PHONY: test-all test-contracts test-guest test-swift test-shell $(SHELL_TEST_TARGETS)
 .PHONY: test-upstream test-guest-install e2e
 
@@ -45,6 +45,7 @@ help:
 	  '                      Choose a certificate when several are available' \
 	  '  make package        Create a signed and notarized distribution DMG' \
 	  '  make local-dmg      Build a DMG signed on this Mac, without a Developer ID' \
+	  '  make published-dmg  Build that DMG against the published 0.4.8 factory' \
 	  '  make release        Choose a version, tag, and build a notarized DMG (latest factory)' \
 	  '  make release VERSION=vX.Y.Z  Choose the version without prompting' \
 	  '  make release FORCE=1  Rebuild the factory even if it matches upstream' \
@@ -104,6 +105,7 @@ test-contracts:
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/tests/test-publish.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/tests/test-package-dmg.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/tests/test-split-factory-image.py"
+	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/tests/test-factory-download.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/tests/test-pack-app-icon.py"
 	@$(ROOT)/macos/Tests/macos-compatibility.test.sh
 	@$(ROOT)/macos/Tests/runtime-relocation.test.sh
@@ -186,6 +188,18 @@ local-dmg: guest runtime firmware
 	  --dmg \
 	  --sign-identity - \
 	  --guest-dir "$(GUEST_DIST)"
+	@printf 'Local DMG: %s\n' "$(ROOT)/dist/SpikersSciencePal.dmg"
+
+# The published disk already contains research 0.4.8. This Mac build does not
+# rebuild it; the app downloads that disk the first time it creates a VM.
+published-dmg: runtime firmware
+	@python3 "$(ROOT)/scripts/prepare-published-guest.py" --output "$(GUEST_DIST)"
+	@$(ROOT)/macos/build-app.sh \
+	  --configuration local \
+	  --dmg \
+	  --sign-identity - \
+	  --guest-dir "$(GUEST_DIST)" \
+	  --download-manifest "$(GUEST_DIST)/download.json"
 	@printf 'Local DMG: %s\n' "$(ROOT)/dist/SpikersSciencePal.dmg"
 
 run: app

@@ -115,16 +115,19 @@ the SciencePal launcher, `sp-bridge`, the menu entries, and
 The 20 GiB disk's sha256 is
 `33caf5836b86a86aba300b2ea1242515f8b7ec406dfd3c55cc18cafd75a0992e`.
 
-On a Mac, download this file and open it. There is no command to type:
+On a Mac, download the app and open it. There is no command to type:
 
-https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19-research-0.4.8/SpikersSciencePal-Research-0.4.8-Mac.zip
+https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19-research-0.4.8/SpikersSciencePal.dmg
 
-Open `安装科研虚拟机 0.4.8` inside the zip. If macOS says it cannot be opened,
-Control-click it and choose Open. The installer downloads the disk, checks it,
-and puts it in an existing Spiker's Science Pal app. A VM disk that is already
-there stays until the app's reset, or until a new data folder is used.
-GitHub stores files only up to 2 GiB, so the disk is also published as four
-parts. The Mac installer joins those parts itself.
+Open the DMG and drag Spiker's Science Pal into Applications, then open it from
+there. The first launch downloads the 0.4.8 disk (about 3.8 GiB) inside the
+app window and then starts the VM. Leave about 25 GiB free. This DMG is
+ad-hoc signed, without an Apple Developer ID. If macOS blocks it, open
+System Settings → Privacy & Security and choose Open Anyway.
+
+The earlier zip only saved the disk to the Desktop. It is not the app. GitHub
+stores files only up to 2 GiB, so the disk remains four parts beside the DMG
+and the app joins those parts itself.
 
 A shell script remains for a machine that does not open the Mac app:
 

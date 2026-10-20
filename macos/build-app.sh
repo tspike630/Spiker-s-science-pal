@@ -9,6 +9,7 @@ Usage: macos/build-app.sh [--open] [--dmg] [--guest-dir DIR]
                                   [--sign-identity IDENTITY]
                                   [--notarize-profile PROFILE]
                                   [--factory-download-url URL]
+                                  [--download-manifest FILE]
 
 Build a self-contained Apple Silicon app. Development builds select a stable
 local signing certificate automatically. A local build is ad-hoc signed with
@@ -19,7 +20,8 @@ keychain profile.
 Development builds carry the compressed factory. Production builds, and any
 build given --factory-download-url, carry a download manifest instead and write
 the image's parts to dist/factory/ for upload beside the DMG. Production builds
-default to the GitHub release of HEAD's vX.Y.Z tag.
+default to the GitHub release of HEAD's vX.Y.Z tag. --download-manifest uses an
+existing manifest, so the compressed image does not have to be on this machine.
 EOF
   exit 64
 }
@@ -31,6 +33,7 @@ configuration=development
 sign_identity=${SPIKERS_CODESIGN_IDENTITY:-auto}
 notarize_profile=
 factory_download_url=
+download_manifest=
 while (($#)); do
   case "$1" in
     --open) open_app=1; shift ;;
@@ -59,6 +62,11 @@ while (($#)); do
     --factory-download-url)
       (($# >= 2)) || usage
       factory_download_url=$2
+      shift 2
+      ;;
+    --download-manifest)
+      (($# >= 2)) || usage
+      download_manifest=$2
       shift 2
       ;;
     *) usage ;;
@@ -284,7 +292,22 @@ install -m 0644 "$macos_dir/qemu-networking.sh" "$contents/Resources/scripts/qem
 install -m 0644 "$macos_dir/network-identity.py" "$contents/Resources/scripts/network-identity.py"
 compressed_name=$(/usr/bin/plutil -extract compressed.path raw -o - "$guest_dir/factory.json")
 guest_resources=(factory.json packages.txt SHA256SUMS)
-if [[ -n $factory_download_url ]]; then
+if [[ -n $download_manifest && -n $factory_download_url ]]; then
+  echo "build-app: pass only one of --download-manifest and --factory-download-url" >&2
+  exit 1
+fi
+if [[ -n $download_manifest ]]; then
+  # The image is already published. Carry its manifest instead of the disk.
+  [[ -f $download_manifest && ! -L $download_manifest ]] || {
+    echo "build-app: download manifest is missing or unsafe: $download_manifest" >&2
+    exit 1
+  }
+  python3 "$repo_dir/scripts/factory_download.py" check \
+    --factory "$guest_dir/factory.json" \
+    --manifest "$download_manifest"
+  cp -c "$download_manifest" "$contents/Resources/guest/download.json"
+  chmod 0644 "$contents/Resources/guest/download.json"
+elif [[ -n $factory_download_url ]]; then
   # The image is over GitHub's 2 GiB asset limit and is only needed for a new
   # VM, so the app downloads it (FactoryImageDownload.swift).
   python3 "$repo_dir/scripts/split-factory-image.py" \
