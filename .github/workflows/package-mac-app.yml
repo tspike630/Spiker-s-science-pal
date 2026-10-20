@@ -5,6 +5,11 @@ on:
   push:
     branches:
       - cursor/packaged-mac-app-b758
+    paths:
+      - Makefile
+      - macos/**
+      - scripts/factory_download.py
+      - scripts/prepare-published-guest.py
 
 permissions:
   contents: write

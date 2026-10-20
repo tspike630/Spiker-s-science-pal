@@ -1,8 +1,7 @@
 #!/bin/sh
-# Fallback installer for the factory VM. Mac users should download and open
-# the zip instead of typing this command:
+# Fallback installer for the factory VM. Mac users should open the app instead:
 #
-#   https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19-research-0.4.8/SpikersSciencePal-Research-0.4.8-Mac.zip
+#   https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19-research-0.4.8/SpikersSciencePal.dmg
 #
 # This script downloads the same disk, checks it, and writes
 # spikers-aarch64-edge.img. The research package 0.4.8-1 is already installed.
@@ -15,8 +14,8 @@ base="https://github.com/tspike630/Spiker-s-science-pal/releases/download/factor
 whole_sha="9f9a4b474e05f1bf8ccef8de7222c647eae844eab485cc5f0acdab530222383e"
 out=${1:-$PWD/spikers-science-pal-vm}
 
-echo "Mac 上请下载并打开这个文件，不用输入命令："
-echo "https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19-research-0.4.8/SpikersSciencePal-Research-0.4.8-Mac.zip"
+echo "Mac 上请下载并打开这个应用，不用输入命令："
+echo "https://github.com/tspike630/Spiker-s-science-pal/releases/download/factory-2026-10-19-research-0.4.8/SpikersSciencePal.dmg"
 echo "下面继续用脚本下载同一份磁盘。科研包版本是 0.4.8-1。"
 
 check() {
