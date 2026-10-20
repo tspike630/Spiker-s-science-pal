@@ -145,9 +145,35 @@ valid_root_marker() { # path
     $(<"$1") == spikers-qemu-storage-root-v1 ]]
 }
 
+# Info.plist SpikersStateDirectoryName lets one packaged app keep a separate VM
+# from the shared default folder. The same check lives in QEMUGPULauncher.swift.
+safe_state_directory_name() { # name
+  local name=$1 rest
+  [[ ${#name} -ge 1 && ${#name} -le 80 ]] || return 1
+  [[ $name != *..* && $name != */* && $name != *\\* ]] || return 1
+  [[ $name =~ ^[A-Za-z0-9] ]] || return 1
+  rest=${name//[A-Za-z0-9 ._()\'-]/}
+  [[ -z $rest ]]
+}
+
+bundled_state_directory_name() {
+  local plist="$contents_dir/Info.plist" name
+  [[ -f $plist && ! -L $plist ]] || return 0
+  name=$(/usr/bin/plutil -extract SpikersStateDirectoryName raw -o - "$plist" 2>/dev/null) || return 0
+  safe_state_directory_name "$name" || return 0
+  printf '%s\n' "$name"
+}
+
 # Resolves and checks the storage folder and takes the persistent VM's lock.
 open_storage() {
   state_root=${SPIKERS_QEMU_GPU_STATE_ROOT:-"$HOME/Library/Application Support/Spiker's Science Pal/VM/v1"}
+  if [[ -z ${SPIKERS_QEMU_GPU_STATE_ROOT:-} ]]; then
+    local bundled_directory
+    bundled_directory=$(bundled_state_directory_name)
+    if [[ -n $bundled_directory ]]; then
+      state_root="$HOME/Library/Application Support/$bundled_directory/VM/v1"
+    fi
+  fi
   [[ $state_root == /* && $state_root != *$'\n'* && $state_root != *$'\r'* ]] ||
     fail "the VM storage location must be an absolute single-line path"
   case ${state_root%/} in

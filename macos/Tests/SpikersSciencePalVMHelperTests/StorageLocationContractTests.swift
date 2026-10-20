@@ -23,6 +23,7 @@ struct StorageLocationContractTests {
         #expect(launcher.contains(
             "state_root=${\(StorageLocationPolicy.environmentKey):-\"$HOME/Library/Application Support/Spiker's Science Pal/VM/v1\"}"
         ))
+        #expect(launcher.contains("SpikersStateDirectoryName"))
     }
 
     @Test("the launcher refuses the same broad storage roots as the picker")
